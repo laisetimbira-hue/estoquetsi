@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>TSI Estoque — Tratamento Industrial de Sementes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase (v8 compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- QRCode gen -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- SheetJS (Excel export) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --green: #2E7D4F;
+  --green-dark: #1B4332;
+  --green-deeper: #12271E;
+  --green-soft: #E7F3EC;
+  --bg: #F4F6F5;
+  --surface: #FFFFFF;
+  --border: #E2E8E5;
+  --text: #1C2521;
+  --text-soft: #5B6B64;
+  --text-mute: #8A9691;
+  --danger: #D64545;
+  --danger-soft: #FBEAEA;
+  --warn: #E2A93B;
+  --warn-soft: #FBF3E2;
+  --ok: #2E7D4F;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(18,39,30,.06), 0 4px 16px rgba(18,39,30,.05);
+  --shadow-lg: 0 8px 30px rgba(18,39,30,.12);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,.font-display{font-family:'Sora', system-ui, sans-serif;}
+button{font-family:inherit; cursor:pointer;}
+input, select, textarea{font-family:inherit;}
+::-webkit-scrollbar{width:8px; height:8px;}
+::-webkit-scrollbar-thumb{background:#C7D3CD; border-radius:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ============ LOGIN ============ */
+#login-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,.08), transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(255,255,255,.06), transparent 40%),
+    linear-gradient(160deg, var(--green-dark), var(--green-deeper));
+  padding:20px;
+}
+.login-card{
+  background:var(--surface); width:100%; max-width:400px; border-radius:20px;
+  padding:40px 36px; box-shadow: var(--shadow-lg);
+  animation: riseIn .5s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes riseIn{from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:translateY(0);}}
+.login-mark{
+  width:52px; height:52px; border-radius:14px; background:linear-gradient(145deg, var(--green), var(--green-dark));
+  display:flex; align-items:center; justify-content:center; margin-bottom:20px;
+  box-shadow: 0 6px 16px rgba(46,125,79,.35);
+}
+.login-title{font-size:24px; font-weight:800; letter-spacing:-.02em; color:var(--green-dark); margin-bottom:4px;}
+.login-sub{font-size:13.5px; color:var(--text-mute); margin-bottom:28px;}
+.field{margin-bottom:16px;}
+.field label{display:block; font-size:12.5px; font-weight:600; color:var(--text-soft); margin-bottom:6px; letter-spacing:.01em;}
+.field input, .field select, .field textarea{
+  width:100%; padding:11px 13px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
+  font-size:14.5px; color:var(--text); background:#FCFDFC; transition:border-color .15s, box-shadow .15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus{
+  outline:none; border-color:var(--green); box-shadow:0 0 0 3px rgba(46,125,79,.12);
+}
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:11px 18px; border-radius:var(--radius-sm); border:none; font-weight:600; font-size:14px;
+  transition:transform .1s, box-shadow .15s, background .15s;
+}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--green); color:#fff; box-shadow:0 4px 12px rgba(46,125,79,.3);}
+.btn-primary:hover{background:#276843;}
+.btn-block{width:100%;}
+.btn-ghost{background:transparent; color:var(--text-soft); border:1.5px solid var(--border);}
+.btn-ghost:hover{background:#F0F3F1;}
+.btn-danger{background:var(--danger-soft); color:var(--danger);}
+.btn-danger:hover{background:#F5D6D6;}
+.btn-sm{padding:7px 12px; font-size:12.5px;}
+.login-error{background:var(--danger-soft); color:var(--danger); font-size:13px; padding:10px 12px; border-radius:8px; margin-bottom:16px; display:none;}
+
+/* ============ APP SHELL ============ */
+#app{display:none; min-height:100vh;}
+.shell{display:grid; grid-template-columns:248px 1fr; min-height:100vh;}
+.sidebar{
+  background: linear-gradient(190deg, var(--green-dark), var(--green-deeper));
+  color:#EAF2EC; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; z-index:40;
+}
+.sidebar-brand{display:flex; align-items:center; gap:11px; padding:22px 20px 18px;}
+.brand-mark{width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.brand-name{font-family:'Sora'; font-weight:800; font-size:16.5px; letter-spacing:.01em; line-height:1.1;}
+.brand-sub{font-size:10.5px; color:rgba(234,242,236,.55); letter-spacing:.04em; text-transform:uppercase;}
+.nav-group{padding:6px 12px; margin-top:6px;}
+.nav-label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:rgba(234,242,236,.4); padding:14px 12px 6px; font-weight:600;}
+.nav-item{
+  display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:9px; color:rgba(234,242,236,.78);
+  font-size:13.8px; font-weight:500; cursor:pointer; transition:background .12s, color .12s; position:relative;
+}
+.nav-item svg{width:17px; height:17px; flex-shrink:0; opacity:.85;}
+.nav-item:hover{background:rgba(255,255,255,.07); color:#fff;}
+.nav-item.active{background:rgba(255,255,255,.14); color:#fff;}
+.nav-item.active svg{opacity:1;}
+.nav-badge{
+  margin-left:auto; background:var(--danger); color:#fff; font-size:10.5px; font-weight:700;
+  padding:1px 6px; border-radius:20px; min-width:18px; text-align:center;
+}
+.sidebar-foot{margin-top:auto; padding:16px; border-top:1px solid rgba(255,255,255,.08);}
+.user-chip{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:9px;}
+.user-avatar{width:32px; height:32px; border-radius:50%; background:var(--green); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0;}
+.user-meta{overflow:hidden;}
+.user-name{font-size:13px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.user-role{font-size:11px; color:rgba(234,242,236,.55); text-transform:capitalize;}
+.logout-btn{margin-left:auto; background:none; border:none; color:rgba(234,242,236,.5); padding:4px;}
+.logout-btn:hover{color:#fff;}
+
+.sidebar-overlay{display:none;}
+.main{display:flex; flex-direction:column; min-height:100vh; min-width:0;}
+.topbar{
+  display:flex; align-items:center; gap:16px; padding:14px 28px; background:var(--surface);
+  border-bottom:1px solid var(--border); position:sticky; top:0; z-index:30;
+}
+.page-title{font-size:19px; font-weight:700; font-family:'Sora'; letter-spacing:-.01em;}
+.search-box{
+  display:flex; align-items:center; gap:8px; background:var(--bg); border:1.5px solid var(--border);
+  border-radius:10px; padding:8px 12px; width:340px; margin-left:auto; transition:border-color .15s;
+}
+.search-box:focus-within{border-color:var(--green);}
+.search-box input{border:none; background:transparent; outline:none; font-size:13.5px; width:100%;}
+.search-box svg{width:15px; height:15px; color:var(--text-mute); flex-shrink:0;}
+.icon-btn{
+  width:36px; height:36px; border-radius:10px; border:1.5px solid var(--border); background:var(--surface);
+  display:flex; align-items:center; justify-content:center; position:relative; color:var(--text-soft);
+}
+.icon-btn:hover{background:var(--bg);}
+.icon-btn svg{width:17px; height:17px;}
+.alert-dot{position:absolute; top:-4px; right:-4px; width:16px; height:16px; background:var(--danger); color:#fff; border-radius:50%; font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid var(--surface);}
+.menu-toggle{display:none;}
+
+.content{padding:26px 28px 60px; flex:1;}
+.section{display:none; animation:fadeIn .25s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+/* ============ KPI CARDS ============ */
+.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:16px; margin-bottom:22px;}
+.kpi-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px;
+  box-shadow:var(--shadow); display:flex; align-items:center; gap:16px; transition:transform .15s, box-shadow .15s;
+}
+.kpi-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg);}
+.kpi-ring{position:relative; width:52px; height:52px; flex-shrink:0;}
+.kpi-ring svg{transform:rotate(-90deg); width:52px; height:52px;}
+.kpi-ring circle{fill:none; stroke-width:5;}
+.kpi-ring .bg{stroke:var(--border);}
+.kpi-ring .fg{stroke:var(--green); stroke-linecap:round; transition:stroke-dashoffset .6s ease;}
+.kpi-ring-icon{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;}
+.kpi-ring-icon svg{width:19px; height:19px; color:var(--green);}
+.kpi-body{min-width:0;}
+.kpi-label{font-size:12px; color:var(--text-mute); font-weight:600; text-transform:uppercase; letter-spacing:.03em; margin-bottom:3px;}
+.kpi-value{font-size:22px; font-weight:800; font-family:'Sora'; letter-spacing:-.02em; line-height:1.1;}
+.kpi-value.danger{color:var(--danger);}
+.kpi-value.warn{color:var(--warn);}
+.kpi-sub{font-size:11.5px; color:var(--text-mute); margin-top:2px;}
+
+.grid-2{display:grid; grid-template-columns:1.4fr 1fr; gap:18px;}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px;}
+.card-head{display:flex; align-items:center; justify-content:between; margin-bottom:16px;}
+.card-title{font-size:15px; font-weight:700; font-family:'Sora';}
+.card-head .btn{margin-left:auto;}
+
+/* ============ TABLE / TOOLBAR ============ */
+.toolbar{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+.toolbar .grow{flex:1;}
+.chip-filter{
+  display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:20px; border:1.5px solid var(--border);
+  font-size:12.5px; font-weight:600; color:var(--text-soft); background:var(--surface);
+}
+.chip-filter.active{background:var(--green-soft); border-color:var(--green); color:var(--green-dark);}
+.table-wrap{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
+table{width:100%; border-collapse:collapse; font-size:13.5px;}
+thead th{
+  text-align:left; padding:12px 16px; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--text-mute); font-weight:700; background:#FAFBFA; border-bottom:1px solid var(--border); white-space:nowrap;
+}
+tbody td{padding:13px 16px; border-bottom:1px solid #F0F2F1; vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#FAFCFA;}
+.tbl-actions{display:flex; gap:6px;}
+.tbl-actions button{
+  width:29px; height:29px; border-radius:7px; border:1px solid var(--border); background:var(--surface);
+  display:flex; align-items:center; justify-content:center; color:var(--text-soft);
+}
+.tbl-actions button:hover{background:var(--bg);}
+.tbl-actions button svg{width:14px; height:14px;}
+.badge{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:700;}
+.badge-ok{background:var(--green-soft); color:var(--green-dark);}
+.badge-warn{background:var(--warn-soft); color:#8A5F10;}
+.badge-danger{background:var(--danger-soft); color:var(--danger);}
+.badge-mute{background:#EEF1EF; color:var(--text-soft);}
+.empty-state{padding:60px 20px; text-align:center; color:var(--text-mute);}
+.empty-state svg{width:44px; height:44px; margin-bottom:12px; opacity:.5;}
+.empty-state p{font-size:14px; margin-bottom:14px;}
+
+/* ============ MODAL ============ */
+.modal-overlay{
+  display:none; position:fixed; inset:0; background:rgba(18,39,30,.45); backdrop-filter:blur(2px);
+  align-items:flex-start; justify-content:center; z-index:100; padding:40px 20px; overflow-y:auto;
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--surface); border-radius:16px; width:100%; max-width:560px; box-shadow:var(--shadow-lg);
+  animation:riseIn .25s ease;
+}
+.modal.modal-lg{max-width:760px;}
+.modal-head{display:flex; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border);}
+.modal-title{font-size:16.5px; font-weight:700; font-family:'Sora';}
+.modal-close{margin-left:auto; background:none; border:none; color:var(--text-mute); width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;}
+.modal-close:hover{background:var(--bg);}
+.modal-body{padding:22px 24px; max-height:70vh; overflow-y:auto;}
+.modal-foot{display:flex; gap:10px; justify-content:flex-end; padding:16px 24px; border-top:1px solid var(--border);}
+.form-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.form-grid .full{grid-column:1/-1;}
+
+/* toast */
+#toast-wrap{position:fixed; bottom:22px; right:22px; z-index:200; display:flex; flex-direction:column; gap:10px;}
+.toast{
+  background:var(--green-dark); color:#fff; padding:12px 18px; border-radius:10px; font-size:13.5px; font-weight:500;
+  box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:10px; animation:riseIn .2s ease; max-width:340px;
+}
+.toast.err{background:var(--danger);}
+.toast svg{width:16px; height:16px; flex-shrink:0;}
+
+/* recipe items */
+.recipe-item-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+.recipe-item-row select{flex:2;}
+.recipe-item-row input{flex:1;}
+.recipe-item-row button{flex-shrink:0;}
+
+.dose-ring-wrap{display:flex; flex-direction:column; align-items:center; gap:6px;}
+.progress-bar{height:7px; background:var(--border); border-radius:20px; overflow:hidden; margin-top:6px;}
+.progress-fill{height:100%; background:var(--green); border-radius:20px; transition:width .4s ease;}
+
+.loading-screen{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999;}
+.spinner{width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media print{
+  .sidebar, .topbar, .toolbar, .tbl-actions, .no-print{display:none !important;}
+  .content{padding:0;}
+  body{background:#fff;}
+}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr;}
+  .sidebar{position:fixed; left:-260px; top:0; width:248px; transition:left .2s ease; box-shadow:var(--shadow-lg);}
+  .sidebar.open{left:0;}
+  .menu-toggle{display:flex;}
+  .search-box{width:auto; flex:1; max-width:220px;}
+  .grid-2{grid-template-columns:1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .page-title{font-size:16px;}
+  .content{padding:18px 14px 50px;}
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:39;}
+  .sidebar-overlay.open{display:block;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen"><div class="spinner"></div></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-screen" style="display:none;">
+  <div class="login-card">
+    <div class="login-mark">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/></svg>
+    </div>
+    <div class="login-title">TSI Estoque</div>
+    <div class="login-sub">Controle de insumos para Tratamento Industrial de Sementes</div>
+    <div class="login-error" id="loginError"></div>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary btn-block" id="btnLogin">Entrar</button>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <div class="shell">
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EAF2EC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">TSI Estoque</div>
+          <div class="brand-sub">Tratamento de Sementes</div>
+        </div>
+      </div>
+
+      <div class="nav-group" style="flex:1; overflow-y:auto;">
+        <div class="nav-label">Visão geral</div>
+        <div class="nav-item active" data-section="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Dashboard
+        </div>
+
+        <div class="nav-label">Operação</div>
+        <div class="nav-item" data-section="produtos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          Produtos
+        </div>
+        <div class="nav-item" data-section="movimentacoes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3 21 7l-4 4M21 7H9M7 21l-4-4 4-4M3 17h12"/></svg>
+          Movimentações
+        </div>
+        <div class="nav-item" data-section="receitas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/><path d="M8 7h8M8 11h8"/></svg>
+          Receitas
+        </div>
+        <div class="nav-item" data-section="lotes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          Tratamento de Lotes
+        </div>
+
+        <div class="nav-label">Gestão</div>
+        <div class="nav-item" data-section="alertas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Alertas
+          <span class="nav-badge" id="navAlertBadge" style="display:none;">0</span>
+        </div>
+        <div class="nav-item" data-section="relatorios">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h1"/></svg>
+          Relatórios
+        </div>
+        <div class="nav-item" data-section="usuarios">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Usuários
+        </div>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="user-chip">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div class="user-meta">
+            <div class="user-name" id="userName">—</div>
+            <div class="user-role" id="userRole">—</div>
+          </div>
+          <button class="logout-btn" id="btnLogout" title="Sair">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <button class="icon-btn menu-toggle" id="btnMenuToggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <div class="page-title" id="pageTitle">Dashboard</div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="globalSearch" placeholder="Buscar produto, lote, receita...">
+        </div>
+        <button class="icon-btn" id="btnAlertTop" title="Alertas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="alert-dot" id="topAlertDot" style="display:none;">0</span>
+        </button>
+      </div>
+
+      <div class="content">
+
+        <!-- ===== DASHBOARD ===== -->
+        <section class="section active" id="section-dashboard">
+          <div class="kpi-grid" id="kpiGrid"></div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Consumo mensal (kg / L)</div></div>
+              <canvas id="chartConsumo" height="140"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Estoque por categoria</div></div>
+              <canvas id="chartCategoria" height="140"></canvas>
+            </div>
+          </div>
+          <div class="card" style="margin-top:18px;">
+            <div class="card-head"><div class="card-title">Últimas movimentações</div></div>
+            <div id="dashRecentMov"></div>
+          </div>
+        </section>
+
+        <!-- ===== PRODUTOS ===== -->
+        <section class="section" id="section-produtos">
+          <div class="toolbar">
+            <div class="grow"></div>
+            <span class="chip-filter active" data-filter-cat="todas">Todas categorias</span>
+            <button class="btn btn-primary" id="btnNovoProduto">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Novo produto
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Produto</th><th>Categoria</th><th>Lote</th><th>Validade</th><th>Estoque</th><th>Mínimo</th><th>Valor unit.</th><th>Status</th><th></th>
+              </tr></thead>
+              <tbody id="tblProdutos"></tbody>
+            </table>
+            <div class="empty-state" id="emptyProdutos" style="display:none;">
+              <p>Nenhum produto cadastrado ainda.</p>
+              <button class="btn btn-primary btn-sm" onclick="openProdutoModal()">Cadastrar primeiro produto</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== MOVIMENTAÇÕES ===== -->
+        <section class="section" id="section-movimentacoes">
+          <div class="toolbar">
+            <span class="chip-filter active" data-mov-filter="todas">Todas</span>
+            <span class="chip-filter" data-mov-filter="entrada">Entradas</span>
+            <span class="chip-filter" data-mov-filter="saida">Saídas</span>
+            <div class="grow"></div>
+            <button class="btn btn-primary" id="btnNovaMov">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Nova movimentação
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Data</th><th>Produto</th><th>Tipo</th><th>Motivo</th><th>Quantidade</th><th>Saldo após</th><th>Responsável</th>
+              </tr></thead>
+              <tbody id="tblMovimentacoes"></tbody>
+            </table>
+            <div class="empty-state" id="emptyMov" style="display:none;"><p>Nenhuma movimentação registrada.</p></div>
+          </div>
+        </section>
+
+        <!-- ===== RECEITAS ===== -->
+        <section class="section" id="section-receitas">
+          <div class="toolbar">
+            <div class="grow"></div>
+            <button class="btn btn-primary" id="btnNovaReceita">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Nova receita
+            </button>
+          </div>
+          <div class="kpi-grid" id="receitasGrid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));"></div>
+          <div class="empty-state" id="emptyReceitas" style="display:none;"><p>Nenhuma receita cadastrada.</p></div>
+        </section>
+
+        <!-- ===== LOTES ===== -->
+        <section class="section" id="section-lotes">
+          <div class="toolbar">
+            <div class="grow"></div>
+            <button class="btn btn-primary" id="btnNovoLote">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Tratar novo lote
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Data</th><th>Cultivar</th><th>Lote</th><th>Sementes (kg)</th><th>Receita</th><th>Operador</th><th></th>
+              </tr></thead>
+              <tbody id="tblLotes"></tbody>
+            </table>
+            <div class="empty-state" id="emptyLotes" style="display:none;"><p>Nenhum lote tratado ainda.</p></div>
+          </div>
+        </section>
+
+        <!-- ===== ALERTAS ===== -->
+        <section class="section" id="section-alertas">
+          <div id="alertasWrap"></div>
+        </section>
+
+        <!-- ===== RELATÓRIOS ===== -->
+        <section class="section" id="section-relatorios">
+          <div class="toolbar">
+            <span class="chip-filter active" data-rel="estoque">Estoque atual</span>
+            <span class="chip-filter" data-rel="movimentacoes">Histórico de movimentações</span>
+            <span class="chip-filter" data-rel="consumo-produto">Consumo por produto</span>
+            <span class="chip-filter" data-rel="consumo-cultivar">Consumo por cultivar</span>
+            <span class="chip-filter" data-rel="consumo-lote">Consumo por lote</span>
+            <div class="grow"></div>
+            <button class="btn btn-ghost btn-sm" id="btnExportExcel">Exportar Excel</button>
+            <button class="btn btn-ghost btn-sm" id="btnExportPdf">Exportar PDF</button>
+          </div>
+          <div class="card" style="margin-bottom:16px;" id="relatorioResumo"></div>
+          <div class="table-wrap">
+            <table id="tblRelatorio"><thead id="tblRelatorioHead"></thead><tbody id="tblRelatorioBody"></tbody></table>
+          </div>
+        </section>
+
+        <!-- ===== USUÁRIOS ===== -->
+        <section class="section" id="section-usuarios">
+          <div class="toolbar">
+            <div class="grow"></div>
+            <button class="btn btn-primary" id="btnNovoUsuario">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Novo usuário
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th></th></tr></thead>
+              <tbody id="tblUsuarios"></tbody>
+            </table>
+          </div>
+          <p style="margin-top:14px; font-size:12.5px; color:var(--text-mute);">Perfis: <b>Administrador</b> (acesso total), <b>Operador</b> (cadastra e movimenta, sem excluir), <b>Visualizador</b> (apenas leitura).</p>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<!-- ============ MODAL: PRODUTO ============ -->
+<div class="modal-overlay" id="modalProduto">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title" id="produtoModalTitle">Novo produto</div><button class="modal-close" onclick="closeModal('modalProduto')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field full"><label>Nome do produto</label><input id="pNome" placeholder="Ex: Standak Top"></div>
+        <div class="field"><label>Categoria</label>
+          <select id="pCategoria">
+            <option>Fungicida</option><option>Inseticida</option><option>Nematicida</option>
+            <option>Polímero / Corante</option><option>Inoculante</option><option>Micronutriente</option><option>Outro</option>
+          </select>
+        </div>
+        <div class="field"><label>Fabricante</label><input id="pFabricante" placeholder="Ex: BASF"></div>
+        <div class="field"><label>Ingrediente ativo</label><input id="pIngrediente" placeholder="Ex: Fipronil + Piraclostrobina"></div>
+        <div class="field"><label>Número do lote</label><input id="pLote" placeholder="Lote do fabricante"></div>
+        <div class="field"><label>Data de fabricação</label><input type="date" id="pFabricacao"></div>
+        <div class="field"><label>Data de validade</label><input type="date" id="pValidade"></div>
+        <div class="field"><label>Unidade</label>
+          <select id="pUnidade"><option value="L">Litros (L)</option><option value="kg">Quilos (kg)</option><option value="mL">Mililitros (mL)</option></select>
+        </div>
+        <div class="field"><label>Quantidade em estoque</label><input type="number" step="0.01" id="pQuantidade" placeholder="0"></div>
+        <div class="field"><label>Estoque mínimo</label><input type="number" step="0.01" id="pMinimo" placeholder="0"></div>
+        <div class="field"><label>Local de armazenamento</label><input id="pLocal" placeholder="Ex: Depósito TSI - Prateleira 3"></div>
+        <div class="field"><label>Valor unitário (R$)</label><input type="number" step="0.01" id="pValor" placeholder="0,00"></div>
+        <div class="field full"><label>Observações</label><textarea id="pObs" rows="2" placeholder="Opcional"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalProduto')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarProduto">Salvar produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: VER PRODUTO / QR ============ -->
+<div class="modal-overlay" id="modalVerProduto">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">QR Code do produto</div><button class="modal-close" onclick="closeModal('modalVerProduto')">✕</button></div>
+    <div class="modal-body" style="text-align:center;">
+      <div id="qrHolder" style="display:inline-block; padding:14px; background:#fff; border:1px solid var(--border); border-radius:10px;"></div>
+      <p style="margin-top:14px; font-weight:700;" id="qrProdutoNome"></p>
+      <p style="font-size:12.5px; color:var(--text-mute);" id="qrProdutoLote"></p>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalVerProduto')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- ============ MODAL: MOVIMENTAÇÃO ============ -->
+<div class="modal-overlay" id="modalMov">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Nova movimentação</div><button class="modal-close" onclick="closeModal('modalMov')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field full"><label>Produto</label><select id="mProduto"></select></div>
+        <div class="field"><label>Tipo</label>
+          <select id="mTipo">
+            <option value="entrada">Entrada</option>
+            <option value="saida">Saída</option>
+          </select>
+        </div>
+        <div class="field"><label>Motivo</label><select id="mMotivo"></select></div>
+        <div class="field"><label>Quantidade</label><input type="number" step="0.01" id="mQuantidade" placeholder="0"></div>
+        <div class="field"><label>Data</label><input type="date" id="mData"></div>
+        <div class="field full"><label>Observações</label><textarea id="mObs" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalMov')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarMov">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: RECEITA ============ -->
+<div class="modal-overlay" id="modalReceita">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title">Nova receita</div><button class="modal-close" onclick="closeModal('modalReceita')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nome da receita</label><input id="rNome" placeholder="Ex: Padrão Soja Premium"></div>
+      <div class="field full" style="margin-top:14px;"><label>Produtos e dose por 100 kg de sementes</label>
+        <div id="recipeItemsWrap"></div>
+        <button class="btn btn-ghost btn-sm" id="btnAddRecipeItem" style="margin-top:6px;">+ Adicionar produto</button>
+      </div>
+      <div class="field" style="margin-top:14px;"><label>Observações</label><textarea id="rObs" rows="2"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalReceita')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarReceita">Salvar receita</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: LOTE / TRATAMENTO ============ -->
+<div class="modal-overlay" id="modalLote">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title">Tratar novo lote</div><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Cultivar</label><input id="lCultivar" placeholder="Ex: NA 5909"></div>
+        <div class="field"><label>Número do lote</label><input id="lLote" placeholder="Ex: 26S310H"></div>
+        <div class="field"><label>Quantidade de sementes (kg)</label><input type="number" step="0.01" id="lQuantidade" placeholder="0"></div>
+        <div class="field"><label>Receita utilizada</label><select id="lReceita"></select></div>
+        <div class="field"><label>Operador</label><input id="lOperador" placeholder="Nome do operador"></div>
+        <div class="field"><label>Data</label><input type="date" id="lData"></div>
+      </div>
+      <div class="card" style="margin-top:16px; background:var(--green-soft); border-color:var(--green);">
+        <div class="card-title" style="margin-bottom:10px; font-size:13.5px;">Consumo calculado</div>
+        <div id="lotePreview" style="font-size:13px; color:var(--text-soft);">Informe a quantidade de sementes e a receita para calcular.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalLote')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarLote">Confirmar tratamento e baixar estoque</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: USUÁRIO ============ -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Novo usuário</div><button class="modal-close" onclick="closeModal('modalUsuario')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nome</label><input id="uNome"></div>
+      <div class="field"><label>E-mail</label><input type="email" id="uEmail"></div>
+      <div class="field"><label>Senha inicial</label><input type="password" id="uSenha"></div>
+      <div class="field"><label>Perfil</label>
+        <select id="uPerfil"><option value="operador">Operador</option><option value="administrador">Administrador</option><option value="visualizador">Visualizador</option></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalUsuario')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarUsuario">Criar usuário</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   TSI ESTOQUE — Firebase config
+   Substitua pelos dados do seu projeto Firebase antes de publicar.
+========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyD4iZ7eGWWBx48D2sq7TcNhrpBg02ejhCQ",
+  authDomain: "estoquetsi.firebaseapp.com",
+  projectId: "estoquetsi",
+  storageBucket: "estoquetsi.firebasestorage.app",
+  messagingSenderId: "280321718209",
+  appId: "1:280321718209:web:b7113e3b99f48c377b6140"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* =========================================================
+   STATE
+========================================================= */
+let currentUser = null;
+let currentUserData = { nome:'Usuário', perfil:'administrador' };
+let produtos = [];
+let movimentacoes = [];
+let receitas = [];
+let lotes = [];
+let usuarios = [];
+let chartConsumo = null, chartCategoria = null;
+let unsubs = [];
+
+const MOTIVOS_ENTRADA = ['Compra','Ajuste','Devolução'];
+const MOTIVOS_SAIDA = ['Consumo em tratamento de sementes','Perdas','Ajustes'];
+
+/* =========================================================
+   UTIL
+========================================================= */
+function fmtMoney(v){ return (v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}); }
+function fmtDate(d){
+  if(!d) return '—';
+  const dt = d.toDate ? d.toDate() : new Date(d);
+  return dt.toLocaleDateString('pt-BR');
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysUntil(dateVal){
+  if(!dateVal) return null;
+  const dt = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+  const diff = Math.ceil((dt.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+  return diff;
+}
+function uid(){ return 'id_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function toast(msg, isErr){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.innerHTML = (isErr
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>'
+  ) + '<span></span>';
+  el.querySelector('span').textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(), 300); }, 3200);
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================
+   AUTH
+========================================================= */
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if(!email || !pass){ errEl.textContent = 'Informe e-mail e senha.'; errEl.style.display='block'; return; }
+  auth.signInWithEmailAndPassword(email, pass).catch(err=>{
+    errEl.textContent = 'Não foi possível entrar. Verifique e-mail e senha.';
+    errEl.style.display = 'block';
+  });
+}
+
+document.getElementById('btnLogout').addEventListener('click', ()=>{ auth.signOut(); });
+
+/* LOGIN TEMPORARIAMENTE DESATIVADO
+   Para reativar o login por e-mail/senha, apague o bloco abaixo e
+   descomente o bloco original (mantido logo em seguida, comentado). */
+document.getElementById('loadingScreen').style.display = 'none';
+document.getElementById('login-screen').style.display = 'none';
+document.getElementById('app').style.display = 'block';
+currentUserData = { nome: 'Administrador', perfil: 'administrador' };
+document.getElementById('userName').textContent = currentUserData.nome;
+document.getElementById('userRole').textContent = currentUserData.perfil;
+document.getElementById('userAvatar').textContent = currentUserData.nome.slice(0,1).toUpperCase();
+applyRolePermissions();
+initListeners();
+
+/* BLOCO ORIGINAL (com login por e-mail/senha) — descomente para reativar:
+auth.onAuthStateChanged(user=>{
+  document.getElementById('loadingScreen').style.display = 'none';
+  if(user){
+    currentUser = user;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadUserProfile(user).then(()=> initListeners());
+  } else {
+    currentUser = null;
+    unsubs.forEach(u=>u());
+    unsubs = [];
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+});
+*/
+
+function loadUserProfile(user){
+  return db.collection('usuarios').doc(user.uid).get().then(doc=>{
+    if(doc.exists){
+      currentUserData = doc.data();
+    } else {
+      currentUserData = { nome: user.email.split('@')[0], email: user.email, perfil:'administrador' };
+      db.collection('usuarios').doc(user.uid).set(currentUserData);
+    }
+    document.getElementById('userName').textContent = currentUserData.nome || user.email;
+    document.getElementById('userRole').textContent = currentUserData.perfil || 'operador';
+    document.getElementById('userAvatar').textContent = (currentUserData.nome || user.email).slice(0,1).toUpperCase();
+    applyRolePermissions();
+  });
+}
+
+function applyRolePermissions(){
+  const perfil = currentUserData.perfil || 'operador';
+  const isViewer = perfil === 'visualizador';
+  const isAdmin = perfil === 'administrador';
+  document.querySelectorAll('[id^="btnNovo"], [id^="btnSalvar"], #btnAddRecipeItem').forEach(b=>{
+    b.style.display = isViewer ? 'none' : '';
+  });
+  document.querySelector('.nav-item[data-section="usuarios"]').style.display = isAdmin ? 'flex' : 'none';
+}
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+const sectionTitles = {
+  dashboard:'Dashboard', produtos:'Produtos', movimentacoes:'Movimentações',
+  receitas:'Receitas', lotes:'Tratamento de Lotes', alertas:'Alertas',
+  relatorios:'Relatórios', usuarios:'Usuários'
+};
+document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+    item.classList.add('active');
+    const sec = item.dataset.section;
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('section-'+sec).classList.add('active');
+    document.getElementById('pageTitle').textContent = sectionTitles[sec];
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+    if(sec === 'relatorios') renderRelatorio('estoque');
+  });
+});
+document.getElementById('btnMenuToggle').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+});
+document.getElementById('sidebarOverlay').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+});
+document.getElementById('btnAlertTop').addEventListener('click', ()=>{
+  document.querySelector('.nav-item[data-section="alertas"]').click();
+});
+
+/* =========================================================
+   FIRESTORE LISTENERS
+========================================================= */
+function initListeners(){
+  unsubs.push(db.collection('produtos').onSnapshot(snap=>{
+    produtos = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderProdutos(); renderDashboard(); renderAlertas(); fillProdutoSelects();
+  }));
+  unsubs.push(db.collection('movimentacoes').orderBy('criadoEm','desc').onSnapshot(snap=>{
+    movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderMovimentacoes(); renderDashboard();
+  }, ()=>{
+    db.collection('movimentacoes').onSnapshot(snap=>{
+      movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0));
+      renderMovimentacoes(); renderDashboard();
+    });
+  }));
+  unsubs.push(db.collection('receitas').onSnapshot(snap=>{
+    receitas = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderReceitas(); fillReceitaSelect();
+  }));
+  unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
+    lotes = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderLotes();
+  }));
+  db.collection('usuarios').onSnapshot(snap=>{
+    usuarios = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderUsuarios();
+  });
+}
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+function ringSvg(pct, color){
+  const r = 21, c = 2*Math.PI*r;
+  const offset = c - (Math.min(pct,100)/100)*c;
+  return `<svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="${r}"/><circle class="fg" cx="26" cy="26" r="${r}" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"/></svg>`;
+}
+function renderDashboard(){
+  const totalValor = produtos.reduce((s,p)=> s + (Number(p.quantidade)||0) * (Number(p.valorUnitario)||0), 0);
+  const qtdProdutos = produtos.length;
+  const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
+  const venc30 = produtos.filter(p=> { const d = daysUntil(p.validade); return d !== null && d >= 0 && d <= 30; });
+  const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
+  const hoje = new Date();
+  const consumoMes = movimentacoes.filter(m=>{
+    if(m.tipo !== 'saida' || !m.data) return false;
+    const d = new Date(m.data);
+    return d.getMonth()===hoje.getMonth() && d.getFullYear()===hoje.getFullYear();
+  }).reduce((s,m)=> s + (Number(m.quantidade)||0), 0);
+
+  const cards = [
+    {label:'Valor total em estoque', value: fmtMoney(totalValor), icon:'money', color:'var(--green)', pct:100},
+    {label:'Produtos cadastrados', value: qtdProdutos, icon:'box', color:'var(--green)', pct:100},
+    {label:'Vence em 30 dias', value: venc30.length, icon:'clock', color:'var(--warn)', pct: qtdProdutos?Math.round(venc30.length/qtdProdutos*100):0, cls: venc30.length?'warn':''},
+    {label:'Produtos vencidos', value: vencidos.length, icon:'alert', color:'var(--danger)', pct: qtdProdutos?Math.round(vencidos.length/qtdProdutos*100):0, cls: vencidos.length?'danger':''},
+    {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--danger)', pct: qtdProdutos?Math.round(baixoMin.length/qtdProdutos*100):0, cls: baixoMin.length?'danger':''},
+    {label:'Consumo no mês', value: consumoMes.toLocaleString('pt-BR'), icon:'consumo', color:'var(--green)', pct:100},
+  ];
+  const icons = {
+    money:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    box:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73Z"/><path d="M3.3 7 12 12l8.7-5"/>',
+    clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    trend:'<path d="M22 17 13.5 8.5 8.5 13.5 2 7"/><path d="M16 17h6v-6"/>',
+    consumo:'<path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/>'
+  };
+  document.getElementById('kpiGrid').innerHTML = cards.map(c=>`
+    <div class="kpi-card">
+      <div class="kpi-ring">${ringSvg(c.pct, c.color)}<div class="kpi-ring-icon" style="color:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[c.icon]}</svg></div></div>
+      <div class="kpi-body"><div class="kpi-label">${c.label}</div><div class="kpi-value ${c.cls||''}">${c.value}</div></div>
+    </div>`).join('');
+
+  document.getElementById('navAlertBadge').style.display = (vencidos.length+venc30.length+baixoMin.length) ? 'inline-flex' : 'none';
+  document.getElementById('navAlertBadge').textContent = vencidos.length+venc30.length+baixoMin.length;
+  document.getElementById('topAlertDot').style.display = (vencidos.length+venc30.length+baixoMin.length) ? 'flex' : 'none';
+  document.getElementById('topAlertDot').textContent = vencidos.length+venc30.length+baixoMin.length;
+
+  // consumo mensal últimos 6 meses
+  const months = [];
+  for(let i=5;i>=0;i--){ const d = new Date(); d.setMonth(d.getMonth()-i); months.push({label:d.toLocaleDateString('pt-BR',{month:'short'}), m:d.getMonth(), y:d.getFullYear()}); }
+  const consumoData = months.map(mo => movimentacoes.filter(m=>{
+    if(m.tipo!=='saida' || !m.data) return false;
+    const d = new Date(m.data);
+    return d.getMonth()===mo.m && d.getFullYear()===mo.y;
+  }).reduce((s,m)=>s+(Number(m.quantidade)||0),0));
+
+  if(chartConsumo) chartConsumo.destroy();
+  chartConsumo = new Chart(document.getElementById('chartConsumo'), {
+    type:'bar',
+    data:{ labels: months.map(m=>m.label), datasets:[{ data: consumoData, backgroundColor:'#2E7D4F', borderRadius:6, maxBarThickness:36 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#EEF1EF'} }, x:{ grid:{display:false} } } }
+  });
+
+  const catMap = {};
+  produtos.forEach(p=>{ catMap[p.categoria || 'Outro'] = (catMap[p.categoria || 'Outro']||0) + (Number(p.quantidade)||0); });
+  if(chartCategoria) chartCategoria.destroy();
+  chartCategoria = new Chart(document.getElementById('chartCategoria'), {
+    type:'doughnut',
+    data:{ labels:Object.keys(catMap), datasets:[{ data:Object.values(catMap), backgroundColor:['#2E7D4F','#1B4332','#7FB88F','#E2A93B','#8A9691','#4C8F68','#D64545'] }]},
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}} }
+  });
+
+  const recent = movimentacoes.slice(0,6);
+  document.getElementById('dashRecentMov').innerHTML = recent.length ? recent.map(m=>`
+    <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #F0F2F1;">
+      <span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span>
+      <span style="font-weight:600; font-size:13.5px;">${esc(m.produtoNome)}</span>
+      <span style="color:var(--text-mute); font-size:12.5px;">${esc(m.motivo)}</span>
+      <span style="margin-left:auto; font-weight:700; font-size:13px;">${m.quantidade}</span>
+      <span style="color:var(--text-mute); font-size:12px; min-width:80px; text-align:right;">${fmtDate(m.data)}</span>
+    </div>`).join('') : '<div class="empty-state"><p>Sem movimentações recentes.</p></div>';
+}
+
+/* =========================================================
+   PRODUTOS
+========================================================= */
+let editingProdutoId = null;
+document.getElementById('btnNovoProduto').addEventListener('click', ()=>openProdutoModal());
+function openProdutoModal(p){
+  editingProdutoId = p ? p.id : null;
+  document.getElementById('produtoModalTitle').textContent = p ? 'Editar produto' : 'Novo produto';
+  document.getElementById('pNome').value = p?.nome || '';
+  document.getElementById('pCategoria').value = p?.categoria || 'Fungicida';
+  document.getElementById('pFabricante').value = p?.fabricante || '';
+  document.getElementById('pIngrediente').value = p?.ingredienteAtivo || '';
+  document.getElementById('pLote').value = p?.lote || '';
+  document.getElementById('pFabricacao').value = p?.fabricacao || '';
+  document.getElementById('pValidade').value = p?.validade || '';
+  document.getElementById('pUnidade').value = p?.unidade || 'L';
+  document.getElementById('pQuantidade').value = p?.quantidade ?? '';
+  document.getElementById('pMinimo').value = p?.estoqueMinimo ?? '';
+  document.getElementById('pLocal').value = p?.local || '';
+  document.getElementById('pValor').value = p?.valorUnitario ?? '';
+  document.getElementById('pObs').value = p?.observacoes || '';
+  openModal('modalProduto');
+}
+document.getElementById('btnSalvarProduto').addEventListener('click', ()=>{
+  const nome = document.getElementById('pNome').value.trim();
+  if(!nome){ toast('Informe o nome do produto', true); return; }
+  const data = {
+    nome, categoria: document.getElementById('pCategoria').value,
+    fabricante: document.getElementById('pFabricante').value.trim(),
+    ingredienteAtivo: document.getElementById('pIngrediente').value.trim(),
+    lote: document.getElementById('pLote').value.trim(),
+    fabricacao: document.getElementById('pFabricacao').value,
+    validade: document.getElementById('pValidade').value,
+    unidade: document.getElementById('pUnidade').value,
+    quantidade: Number(document.getElementById('pQuantidade').value)||0,
+    estoqueMinimo: Number(document.getElementById('pMinimo').value)||0,
+    local: document.getElementById('pLocal').value.trim(),
+    valorUnitario: Number(document.getElementById('pValor').value)||0,
+    observacoes: document.getElementById('pObs').value.trim(),
+    atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const promise = editingProdutoId
+    ? db.collection('produtos').doc(editingProdutoId).update(data)
+    : db.collection('produtos').add({...data, criadoEm: firebase.firestore.FieldValue.serverTimestamp(), qrData: uid()});
+  promise.then(()=>{ closeModal('modalProduto'); toast('Produto salvo com sucesso'); })
+    .catch(()=> toast('Erro ao salvar produto', true));
+});
+
+function statusProduto(p){
+  const d = daysUntil(p.validade);
+  if(d !== null && d < 0) return {label:'Vencido', cls:'badge-danger'};
+  if(d !== null && d <= 30) return {label:'Vence em breve', cls:'badge-warn'};
+  if(Number(p.quantidade) <= Number(p.estoqueMinimo||0)) return {label:'Estoque baixo', cls:'badge-warn'};
+  return {label:'Normal', cls:'badge-ok'};
+}
+let produtoCatFilter = 'todas';
+function renderProdutos(){
+  const term = document.getElementById('globalSearch').value.toLowerCase();
+  const list = produtos.filter(p=>{
+    const matchCat = produtoCatFilter==='todas' || p.categoria===produtoCatFilter;
+    const matchSearch = !term || (p.nome||'').toLowerCase().includes(term) || (p.lote||'').toLowerCase().includes(term);
+    return matchCat && matchSearch;
+  });
+  document.getElementById('emptyProdutos').style.display = list.length ? 'none' : 'block';
+  document.getElementById('tblProdutos').innerHTML = list.map(p=>{
+    const st = statusProduto(p);
+    return `<tr>
+      <td><b>${esc(p.nome)}</b><div style="font-size:11.5px; color:var(--text-mute);">${esc(p.fabricante||'')}</div></td>
+      <td>${esc(p.categoria||'—')}</td>
+      <td>${esc(p.lote||'—')}</td>
+      <td>${p.validade ? fmtDate(p.validade) : '—'}</td>
+      <td><b>${p.quantidade} ${esc(p.unidade)}</b></td>
+      <td>${p.estoqueMinimo} ${esc(p.unidade)}</td>
+      <td>${fmtMoney(p.valorUnitario)}</td>
+      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td><div class="tbl-actions">
+        <button onclick='showQr(${JSON.stringify(p.id)})' title="QR Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M20 14v3h-3M14 21h7"/></svg></button>
+        <button onclick='editProduto(${JSON.stringify(p.id)})' title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
+        <button onclick='delProduto(${JSON.stringify(p.id)})' title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function editProduto(id){ openProdutoModal(produtos.find(p=>p.id===id)); }
+function delProduto(id){
+  if(!confirm('Excluir este produto? Esta ação não pode ser desfeita.')) return;
+  db.collection('produtos').doc(id).delete().then(()=>toast('Produto excluído')).catch(()=>toast('Erro ao excluir', true));
+}
+function showQr(id){
+  const p = produtos.find(x=>x.id===id);
+  document.getElementById('qrHolder').innerHTML = '';
+  new QRCode(document.getElementById('qrHolder'), { text: p.qrData || p.id, width:180, height:180, colorDark:'#1B4332', colorLight:'#ffffff' });
+  document.getElementById('qrProdutoNome').textContent = p.nome;
+  document.getElementById('qrProdutoLote').textContent = 'Lote: ' + (p.lote || '—');
+  openModal('modalVerProduto');
+}
+document.querySelectorAll('.chip-filter[data-filter-cat]').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip-filter[data-filter-cat]').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active');
+    produtoCatFilter = el.dataset.filterCat;
+    renderProdutos();
+  });
+});
+document.getElementById('globalSearch').addEventListener('input', ()=>{ renderProdutos(); });
+
+function fillProdutoSelects(){
+  const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${p.quantidade} ${esc(p.unidade)})</option>`).join('');
+  document.getElementById('mProduto').innerHTML = opts || '<option value="">Nenhum produto cadastrado</option>';
+}
+
+/* =========================================================
+   MOVIMENTAÇÕES
+========================================================= */
+function updateMotivos(){
+  const tipo = document.getElementById('mTipo').value;
+  const motivos = tipo==='entrada' ? MOTIVOS_ENTRADA : MOTIVOS_SAIDA;
+  document.getElementById('mMotivo').innerHTML = motivos.map(m=>`<option>${m}</option>`).join('');
+}
+document.getElementById('mTipo').addEventListener('change', updateMotivos);
+document.getElementById('btnNovaMov').addEventListener('click', ()=>{
+  fillProdutoSelects(); updateMotivos();
+  document.getElementById('mQuantidade').value = '';
+  document.getElementById('mObs').value = '';
+  document.getElementById('mData').value = todayISO();
+  openModal('modalMov');
+});
+document.getElementById('btnSalvarMov').addEventListener('click', ()=>{
+  const produtoId = document.getElementById('mProduto').value;
+  const produto = produtos.find(p=>p.id===produtoId);
+  if(!produto){ toast('Selecione um produto', true); return; }
+  const tipo = document.getElementById('mTipo').value;
+  const qtd = Number(document.getElementById('mQuantidade').value);
+  if(!qtd || qtd<=0){ toast('Informe uma quantidade válida', true); return; }
+  const novoSaldo = tipo==='entrada' ? (Number(produto.quantidade)||0)+qtd : (Number(produto.quantidade)||0)-qtd;
+  if(tipo==='saida' && novoSaldo < 0){ toast('Estoque insuficiente para essa saída', true); return; }
+
+  const batch = db.batch();
+  const movRef = db.collection('movimentacoes').doc();
+  batch.set(movRef, {
+    produtoId, produtoNome: produto.nome, tipo,
+    motivo: document.getElementById('mMotivo').value,
+    quantidade: qtd, data: document.getElementById('mData').value,
+    observacoes: document.getElementById('mObs').value.trim(),
+    responsavel: currentUserData.nome || 'Usuário',
+    saldoApos: novoSaldo,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  batch.update(db.collection('produtos').doc(produtoId), { quantidade: novoSaldo });
+  batch.commit().then(()=>{ closeModal('modalMov'); toast('Movimentação registrada'); })
+    .catch(()=>toast('Erro ao registrar movimentação', true));
+});
+let movFilter = 'todas';
+document.querySelectorAll('.chip-filter[data-mov-filter]').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip-filter[data-mov-filter]').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active'); movFilter = el.dataset.movFilter; renderMovimentacoes();
+  });
+});
+function renderMovimentacoes(){
+  const list = movimentacoes.filter(m=> movFilter==='todas' || m.tipo===movFilter);
+  document.getElementById('emptyMov').style.display = list.length ? 'none' : 'block';
+  document.getElementById('tblMovimentacoes').innerHTML = list.map(m=>`
+    <tr>
+      <td>${fmtDate(m.data)}</td>
+      <td><b>${esc(m.produtoNome)}</b></td>
+      <td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td>
+      <td>${esc(m.motivo)}</td>
+      <td><b>${m.quantidade}</b></td>
+      <td>${m.saldoApos}</td>
+      <td>${esc(m.responsavel||'—')}</td>
+    </tr>`).join('');
+}
+
+/* =========================================================
+   RECEITAS
+========================================================= */
+document.getElementById('btnNovaReceita').addEventListener('click', ()=>{
+  document.getElementById('rNome').value = '';
+  document.getElementById('rObs').value = '';
+  document.getElementById('recipeItemsWrap').innerHTML = '';
+  addRecipeItemRow();
+  openModal('modalReceita');
+});
+document.getElementById('btnAddRecipeItem').addEventListener('click', addRecipeItemRow);
+function addRecipeItemRow(){
+  const row = document.createElement('div');
+  row.className = 'recipe-item-row';
+  const opts = produtos.map(p=>`<option value="${p.id}" data-unidade="${p.unidade}">${esc(p.nome)}</option>`).join('');
+  row.innerHTML = `
+    <select class="ri-produto">${opts || '<option value="">Cadastre um produto primeiro</option>'}</select>
+    <input class="ri-dose" type="number" step="0.001" placeholder="Dose / 100kg">
+    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('recipeItemsWrap').appendChild(row);
+}
+document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
+  const nome = document.getElementById('rNome').value.trim();
+  if(!nome){ toast('Informe o nome da receita', true); return; }
+  const itens = [...document.querySelectorAll('#recipeItemsWrap .recipe-item-row')].map(row=>{
+    const sel = row.querySelector('.ri-produto');
+    const produto = produtos.find(p=>p.id===sel.value);
+    return {
+      produtoId: sel.value, produtoNome: produto?produto.nome:'', unidade: produto?produto.unidade:'',
+      dosePor100kg: Number(row.querySelector('.ri-dose').value)||0
+    };
+  }).filter(i=>i.produtoId && i.dosePor100kg>0);
+  if(!itens.length){ toast('Adicione ao menos um produto com dose', true); return; }
+  db.collection('receitas').add({
+    nome, itens, observacoes: document.getElementById('rObs').value.trim(),
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(()=>{ closeModal('modalReceita'); toast('Receita salva'); })
+    .catch(()=>toast('Erro ao salvar receita', true));
+});
+function renderReceitas(){
+  document.getElementById('emptyReceitas').style.display = receitas.length ? 'none' : 'block';
+  document.getElementById('receitasGrid').innerHTML = receitas.map(r=>`
+    <div class="card">
+      <div class="card-head" style="margin-bottom:10px;">
+        <div class="card-title">${esc(r.nome)}</div>
+        <button class="tbl-actions" style="margin-left:auto; border:none; background:none; color:var(--danger);" onclick="delReceita('${r.id}')" title="Excluir">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+        </button>
+      </div>
+      ${r.itens.map(i=>`<div style="display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid #F0F2F1;">
+        <span>${esc(i.produtoNome)}</span><b>${i.dosePor100kg} ${esc(i.unidade)}/100kg</b>
+      </div>`).join('')}
+      ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
+    </div>`).join('');
+}
+function delReceita(id){
+  if(!confirm('Excluir esta receita?')) return;
+  db.collection('receitas').doc(id).delete().then(()=>toast('Receita excluída'));
+}
+function fillReceitaSelect(){
+  document.getElementById('lReceita').innerHTML = receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
+}
+
+/* =========================================================
+   LOTES DE TRATAMENTO
+========================================================= */
+document.getElementById('btnNovoLote').addEventListener('click', ()=>{
+  fillReceitaSelect();
+  document.getElementById('lCultivar').value = '';
+  document.getElementById('lLote').value = '';
+  document.getElementById('lQuantidade').value = '';
+  document.getElementById('lOperador').value = '';
+  document.getElementById('lData').value = todayISO();
+  document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.';
+  openModal('modalLote');
+});
+function calcularConsumoLote(){
+  const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
+  const kg = Number(document.getElementById('lQuantidade').value)||0;
+  if(!receita || !kg){ document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.'; return null; }
+  const fator = kg/100;
+  const itens = receita.itens.map(i=>{
+    const produto = produtos.find(p=>p.id===i.produtoId);
+    const consumo = +(i.dosePor100kg * fator).toFixed(3);
+    const disponivel = produto ? Number(produto.quantidade) : 0;
+    return { produtoId:i.produtoId, produtoNome:i.produtoNome, unidade:i.unidade, consumo, disponivel, suficiente: disponivel>=consumo };
+  });
+  document.getElementById('lotePreview').innerHTML = itens.map(i=>{
+    const pct = i.disponivel ? Math.min(100, Math.round((i.consumo/i.disponivel)*100)) : 100;
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:13px;">
+        <span>${esc(i.produtoNome)}</span>
+        <b style="color:${i.suficiente?'var(--green-dark)':'var(--danger)'}">${i.consumo} ${esc(i.unidade)} ${i.suficiente?'':' — estoque insuficiente!'}</b>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${i.suficiente?'var(--green)':'var(--danger)'}"></div></div>
+    </div>`;
+  }).join('');
+  return itens;
+}
+['lQuantidade','lReceita'].forEach(id=> document.getElementById(id).addEventListener('input', calcularConsumoLote));
+document.getElementById('lReceita').addEventListener('change', calcularConsumoLote);
+
+document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
+  const cultivar = document.getElementById('lCultivar').value.trim();
+  const numeroLote = document.getElementById('lLote').value.trim();
+  const kg = Number(document.getElementById('lQuantidade').value);
+  const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
+  if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos do lote', true); return; }
+  const itens = calcularConsumoLote();
+  if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
+  const insuficiente = itens.find(i=>!i.suficiente);
+  if(insuficiente){ toast('Estoque insuficiente de ' + insuficiente.produtoNome, true); return; }
+
+  const batch = db.batch();
+  const loteRef = db.collection('lotesTratamento').doc();
+  batch.set(loteRef, {
+    cultivar, numeroLote, quantidadeSementes: kg, receitaId: receita.id, receitaNome: receita.nome,
+    operador: document.getElementById('lOperador').value.trim(),
+    data: document.getElementById('lData').value,
+    itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  itens.forEach(i=>{
+    const produto = produtos.find(p=>p.id===i.produtoId);
+    const novoSaldo = +(Number(produto.quantidade) - i.consumo).toFixed(3);
+    batch.update(db.collection('produtos').doc(i.produtoId), { quantidade: novoSaldo });
+    const movRef = db.collection('movimentacoes').doc();
+    batch.set(movRef, {
+      produtoId: i.produtoId, produtoNome: i.produtoNome, tipo:'saida', motivo:'Consumo em tratamento de sementes',
+      quantidade: i.consumo, data: document.getElementById('lData').value,
+      observacoes: `Lote ${numeroLote} — ${cultivar} (receita: ${receita.nome})`,
+      responsavel: currentUserData.nome || 'Usuário', saldoApos: novoSaldo,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  });
+  batch.commit().then(()=>{ closeModal('modalLote'); toast('Lote tratado e estoque atualizado'); })
+    .catch(()=> toast('Erro ao salvar tratamento do lote', true));
+});
+function renderLotes(){
+  document.getElementById('emptyLotes').style.display = lotes.length ? 'none' : 'block';
+  document.getElementById('tblLotes').innerHTML = lotes.map(l=>`
+    <tr>
+      <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
+      <td>${l.quantidadeSementes}</td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
+      <td><div class="tbl-actions"><button onclick='verLote("${l.id}")' title="Ver consumo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
+      </button></div></td>
+    </tr>`).join('');
+}
+function verLote(id){
+  const l = lotes.find(x=>x.id===id);
+  alert('Lote ' + l.numeroLote + ' (' + l.cultivar + ')\\n\\nConsumo:\\n' + l.itensConsumidos.map(i=>i.produtoNome+': '+i.quantidade+' '+i.unidade).join('\\n'));
+}
+
+/* =========================================================
+   ALERTAS
+========================================================= */
+function renderAlertas(){
+  const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
+  const venc30 = produtos.filter(p=> { const d=daysUntil(p.validade); return d!==null && d>=0 && d<=30; });
+  const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
+  function block(title, list, cls, empty){
+    return `<div class="card" style="margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:12px;">${title} <span class="badge ${cls}" style="margin-left:8px;">${list.length}</span></div>
+      ${list.length ? list.map(p=>`<div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13.5px;">
+        <span><b>${esc(p.nome)}</b> — ${esc(p.local||'sem local definido')}</span>
+        <span style="color:var(--text-mute);">${p.validade ? 'Validade: '+fmtDate(p.validade) : 'Estoque: '+p.quantidade+' / mín. '+p.estoqueMinimo}</span>
+      </div>`).join('') : `<p style="color:var(--text-mute); font-size:13px;">${empty}</p>`}
+    </div>`;
+  }
+  document.getElementById('alertasWrap').innerHTML =
+    block('Produtos vencidos', vencidos, 'badge-danger', 'Nenhum produto vencido.') +
+    block('Vencendo em até 30 dias', venc30, 'badge-warn', 'Nenhum produto vencendo em breve.') +
+    block('Abaixo do estoque mínimo', baixoMin, 'badge-warn', 'Todos os produtos estão com estoque adequado.');
+}
+
+/* =========================================================
+   RELATÓRIOS
+========================================================= */
+let currentReportKey = 'estoque';
+document.querySelectorAll('.chip-filter[data-rel]').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip-filter[data-rel]').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active'); renderRelatorio(el.dataset.rel);
+  });
+});
+function renderRelatorio(key){
+  currentReportKey = key;
+  const head = document.getElementById('tblRelatorioHead');
+  const body = document.getElementById('tblRelatorioBody');
+  const resumo = document.getElementById('relatorioResumo');
+
+  if(key==='estoque'){
+    const totalValor = produtos.reduce((s,p)=>s+(Number(p.quantidade)||0)*(Number(p.valorUnitario)||0),0);
+    resumo.innerHTML = `<b>Valor total do estoque:</b> ${fmtMoney(totalValor)} · <b>Itens:</b> ${produtos.length}`;
+    head.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Validade</th><th>Valor unit.</th><th>Valor total</th></tr>';
+    body.innerHTML = produtos.map(p=>`<tr><td>${esc(p.nome)}</td><td>${esc(p.categoria)}</td><td>${p.quantidade} ${esc(p.unidade)}</td><td>${p.estoqueMinimo}</td><td>${p.validade?fmtDate(p.validade):'—'}</td><td>${fmtMoney(p.valorUnitario)}</td><td>${fmtMoney((p.quantidade||0)*(p.valorUnitario||0))}</td></tr>`).join('');
+  }
+  else if(key==='movimentacoes'){
+    resumo.innerHTML = `<b>Total de movimentações:</b> ${movimentacoes.length}`;
+    head.innerHTML = '<tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Motivo</th><th>Quantidade</th><th>Responsável</th></tr>';
+    body.innerHTML = movimentacoes.map(m=>`<tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td>${m.tipo}</td><td>${esc(m.motivo)}</td><td>${m.quantidade}</td><td>${esc(m.responsavel||'')}</td></tr>`).join('');
+  }
+  else if(key==='consumo-produto'){
+    const map = {};
+    movimentacoes.filter(m=>m.tipo==='saida').forEach(m=>{ map[m.produtoNome] = (map[m.produtoNome]||0)+Number(m.quantidade); });
+    resumo.innerHTML = `<b>Produtos com consumo registrado:</b> ${Object.keys(map).length}`;
+    head.innerHTML = '<tr><th>Produto</th><th>Consumo total</th></tr>';
+    body.innerHTML = Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.toLocaleString('pt-BR')}</td></tr>`).join('');
+  }
+  else if(key==='consumo-cultivar'){
+    const map = {};
+    lotes.forEach(l=>{ map[l.cultivar] = (map[l.cultivar]||0) + (l.itensConsumidos||[]).reduce((s,i)=>s+Number(i.quantidade),0); });
+    resumo.innerHTML = `<b>Cultivares tratados:</b> ${Object.keys(map).length}`;
+    head.innerHTML = '<tr><th>Cultivar</th><th>Consumo total de insumos</th></tr>';
+    body.innerHTML = Object.entries(map).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.toLocaleString('pt-BR')}</td></tr>`).join('');
+  }
+  else if(key==='consumo-lote'){
+    resumo.innerHTML = `<b>Lotes tratados:</b> ${lotes.length}`;
+    head.innerHTML = '<tr><th>Lote</th><th>Cultivar</th><th>Sementes (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
+    body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${l.quantidadeSementes}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+i.quantidade+' '+i.unidade).join(', ')}</td></tr>`).join('');
+  }
+}
+document.getElementById('btnExportExcel').addEventListener('click', ()=>{
+  const table = document.getElementById('tblRelatorio');
+  const wb = XLSX.utils.table_to_book(table, {sheet:'Relatorio'});
+  XLSX.writeFile(wb, 'relatorio_' + currentReportKey + '.xlsx');
+});
+document.getElementById('btnExportPdf').addEventListener('click', ()=>{ window.print(); });
+
+/* =========================================================
+   USUÁRIOS
+========================================================= */
+document.getElementById('btnNovoUsuario').addEventListener('click', ()=>{
+  document.getElementById('uNome').value = '';
+  document.getElementById('uEmail').value = '';
+  document.getElementById('uSenha').value = '';
+  document.getElementById('uPerfil').value = 'operador';
+  openModal('modalUsuario');
+});
+document.getElementById('btnSalvarUsuario').addEventListener('click', ()=>{
+  const nome = document.getElementById('uNome').value.trim();
+  const email = document.getElementById('uEmail').value.trim();
+  const senha = document.getElementById('uSenha').value;
+  const perfil = document.getElementById('uPerfil').value;
+  if(!nome || !email || senha.length<6){ toast('Preencha os dados corretamente (senha com 6+ caracteres)', true); return; }
+  // Cria em app secundário para não deslogar o admin atual
+  const secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary_' + Date.now());
+  secondaryApp.auth().createUserWithEmailAndPassword(email, senha).then(cred=>{
+    return db.collection('usuarios').doc(cred.user.uid).set({ nome, email, perfil });
+  }).then(()=>{
+    secondaryApp.auth().signOut();
+    secondaryApp.delete();
+    closeModal('modalUsuario');
+    toast('Usuário criado com sucesso');
+  }).catch(err=>{ toast('Erro ao criar usuário: ' + err.message, true); });
+});
+function renderUsuarios(){
+  document.getElementById('tblUsuarios').innerHTML = usuarios.map(u=>`
+    <tr><td>${esc(u.nome)}</td><td>${esc(u.email||'—')}</td><td><span class="badge badge-mute">${esc(u.perfil)}</span></td>
+    <td><div class="tbl-actions"><button onclick='delUsuario("${u.id}")' title="Remover acesso">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+    </button></div></td></tr>`).join('');
+}
+function delUsuario(id){
+  if(!confirm('Remover este usuário da lista de acesso ao sistema? (a conta de autenticação deve ser removida manualmente no console Firebase)')) return;
+  db.collection('usuarios').doc(id).delete().then(()=>toast('Usuário removido'));
+}
+</script>
+</body>
+</html>
