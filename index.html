@@ -1480,6 +1480,17 @@ function openReceitaModalEdit(id){
   if(!r.itens || !r.itens.length) addRecipeItemRow();
   openModal('modalReceita');
 }
+function duplicarReceita(id){
+  const r = receitas.find(x=>x.id===id);
+  if(!r) return;
+  editingReceitaId = null; // duplicar sempre cria uma receita NOVA, nunca sobrescreve a original
+  document.getElementById('rNome').value = r.nome ? (r.nome + ' (cópia)') : '';
+  document.getElementById('rObs').value = r.observacoes || '';
+  document.getElementById('recipeItemsWrap').innerHTML = '';
+  (r.itens||[]).forEach(item=> addRecipeItemRow(item));
+  if(!r.itens || !r.itens.length) addRecipeItemRow();
+  openModal('modalReceita');
+}
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
 function deriveDoseMlPorKg(item){
   if(!item) return '';
@@ -1542,6 +1553,9 @@ function renderReceitas(){
       <div class="card-head" style="margin-bottom:10px;">
         <div class="card-title">${esc(r.nome)}</div>
         <div style="margin-left:auto; display:flex; gap:6px;">
+          <button style="border:none; background:none; color:var(--text-soft); width:28px; height:28px; border-radius:7px;" onclick="duplicarReceita('${r.id}')" title="Duplicar (criar nova a partir desta)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
           <button style="border:none; background:none; color:var(--text-soft); width:28px; height:28px; border-radius:7px;" onclick="openReceitaModalEdit('${r.id}')" title="Editar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
           </button>
