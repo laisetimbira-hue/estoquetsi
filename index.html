@@ -16,8 +16,6 @@
 
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<!-- QRCode gen -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- SheetJS (Excel export) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -335,7 +333,11 @@ tbody tr:hover{background:#FAFCFA;}
 
       <div class="nav-group" style="flex:1; overflow-y:auto;">
         <div class="nav-label">Visão geral</div>
-        <div class="nav-item active" data-section="dashboard">
+        <div class="nav-item active" data-section="centro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+          Centro de Operações
+        </div>
+        <div class="nav-item" data-section="dashboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
           Dashboard
         </div>
@@ -393,7 +395,7 @@ tbody tr:hover{background:#FAFCFA;}
         <button class="icon-btn menu-toggle" id="btnMenuToggle">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
-        <div class="page-title" id="pageTitle">Dashboard</div>
+        <div class="page-title" id="pageTitle">Centro de Operações</div>
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" id="globalSearch" placeholder="Buscar produto, lote, receita...">
@@ -406,8 +408,81 @@ tbody tr:hover{background:#FAFCFA;}
 
       <div class="content">
 
+        <!-- ===== CENTRO DE OPERAÇÕES ===== -->
+        <section class="section active" id="section-centro">
+          <div class="toolbar" style="margin-bottom:18px;">
+            <select class="chip-filter" id="coPeriodo" style="border:1.5px solid var(--border); background:var(--surface);">
+              <option value="hoje">Hoje</option>
+              <option value="ontem">Ontem</option>
+              <option value="7d">Últimos 7 dias</option>
+              <option value="30d">Últimos 30 dias</option>
+            </select>
+            <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
+            <select class="chip-filter" id="coOperador" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todos">Todos os operadores</option></select>
+            <select class="chip-filter" id="coReceita" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas as receitas</option></select>
+            <select class="chip-filter" id="coCategoria" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas categorias</option></select>
+          </div>
+
+          <div class="grid-2" style="grid-template-columns:220px 1fr; margin-bottom:18px;">
+            <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+              <div id="coStatusRing" style="position:relative; width:120px; height:120px;"></div>
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-mute); font-weight:700; margin-top:10px;">Status da operação</div>
+              <div id="coStatusLabel" style="font-size:17px; font-weight:800; font-family:'Sora';">—</div>
+            </div>
+            <div class="kpi-grid" id="coKpiGrid" style="margin-bottom:0;"></div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:18px;">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Alertas inteligentes</div></div>
+              <div id="coAlertas"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Lotes tratados no período</div></div>
+              <div id="coLotes" style="max-height:320px; overflow-y:auto;"></div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:18px;">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Consumo de produtos</div></div>
+              <canvas id="chartCoConsumo" height="160"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Consumo por cultivar</div></div>
+              <canvas id="chartCoCultivar" height="160"></canvas>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:18px;">
+            <div class="card-head"><div class="card-title">Estoque em tempo real</div></div>
+            <div id="coEstoqueTabela"></div>
+          </div>
+
+          <div class="card" style="margin-bottom:18px;">
+            <div class="card-head"><div class="card-title">Próximos produtos a vencer</div></div>
+            <div class="kpi-grid" id="coVencendoGrid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));"></div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:18px;">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Últimas movimentações</div></div>
+              <div id="coMovimentacoes" style="max-height:360px; overflow-y:auto;"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div class="card-title">Receitas mais utilizadas</div></div>
+              <div id="coRankingReceitas"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div class="card-title">Linha do tempo da operação</div></div>
+            <div id="coTimeline" style="max-height:400px; overflow-y:auto;"></div>
+          </div>
+        </section>
+
         <!-- ===== DASHBOARD ===== -->
-        <section class="section active" id="section-dashboard">
+        <section class="section" id="section-dashboard">
           <div class="kpi-grid" id="kpiGrid"></div>
           <div class="grid-2">
             <div class="card">
@@ -438,7 +513,7 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Produto</th><th>Categoria</th><th>Lote</th><th>Validade</th><th>Estoque</th><th>Mínimo</th><th>Valor unit.</th><th>Status</th><th></th>
+                <th>Produto</th><th>Categoria</th><th>Lote</th><th>Validade</th><th>Estoque</th><th>Mínimo</th><th>Status</th><th></th>
               </tr></thead>
               <tbody id="tblProdutos"></tbody>
             </table>
@@ -569,15 +644,13 @@ tbody tr:hover{background:#FAFCFA;}
         <div class="field"><label>Fabricante</label><input id="pFabricante" placeholder="Ex: BASF"></div>
         <div class="field"><label>Ingrediente ativo</label><input id="pIngrediente" placeholder="Ex: Fipronil + Piraclostrobina"></div>
         <div class="field"><label>Número do lote</label><input id="pLote" placeholder="Lote do fabricante"></div>
-        <div class="field"><label>Data de fabricação</label><input type="date" id="pFabricacao"></div>
         <div class="field"><label>Data de validade</label><input type="date" id="pValidade"></div>
         <div class="field"><label>Unidade</label>
           <select id="pUnidade"><option value="L">Litros (L)</option><option value="kg">Quilos (kg)</option><option value="mL">Mililitros (mL)</option></select>
         </div>
         <div class="field"><label>Quantidade em estoque</label><input type="number" step="0.01" id="pQuantidade" placeholder="0"></div>
         <div class="field"><label>Estoque mínimo</label><input type="number" step="0.01" id="pMinimo" placeholder="0"></div>
-        <div class="field"><label>Local de armazenamento</label><input id="pLocal" placeholder="Ex: Depósito TSI - Prateleira 3"></div>
-        <div class="field"><label>Valor unitário (R$)</label><input type="number" step="0.01" id="pValor" placeholder="0,00"></div>
+        <div class="field full"><label>Local de armazenamento</label><input id="pLocal" placeholder="Ex: Depósito TSI - Prateleira 3"></div>
         <div class="field full"><label>Observações</label><textarea id="pObs" rows="2" placeholder="Opcional"></textarea></div>
       </div>
     </div>
@@ -585,19 +658,6 @@ tbody tr:hover{background:#FAFCFA;}
       <button class="btn btn-ghost" onclick="closeModal('modalProduto')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarProduto">Salvar produto</button>
     </div>
-  </div>
-</div>
-
-<!-- ============ MODAL: VER PRODUTO / QR ============ -->
-<div class="modal-overlay" id="modalVerProduto">
-  <div class="modal">
-    <div class="modal-head"><div class="modal-title">QR Code do produto</div><button class="modal-close" onclick="closeModal('modalVerProduto')">✕</button></div>
-    <div class="modal-body" style="text-align:center;">
-      <div id="qrHolder" style="display:inline-block; padding:14px; background:#fff; border:1px solid var(--border); border-radius:10px;"></div>
-      <p style="margin-top:14px; font-weight:700;" id="qrProdutoNome"></p>
-      <p style="font-size:12.5px; color:var(--text-mute);" id="qrProdutoLote"></p>
-    </div>
-    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal('modalVerProduto')">Fechar</button></div>
   </div>
 </div>
 
@@ -720,8 +780,8 @@ let usuarios = [];
 let chartConsumo = null, chartCategoria = null;
 let unsubs = [];
 
-const MOTIVOS_ENTRADA = ['Compra','Ajuste','Devolução'];
-const MOTIVOS_SAIDA = ['Consumo em tratamento de sementes','Perdas','Ajustes'];
+const MOTIVOS_ENTRADA = ['Compra','Ajuste','Devolução','Empréstimo'];
+const MOTIVOS_SAIDA = ['Consumo em tratamento de sementes','Perdas','Ajustes','Empréstimo'];
 
 /* =========================================================
    UTIL
@@ -836,7 +896,7 @@ function applyRolePermissions(){
    NAVIGATION
 ========================================================= */
 const sectionTitles = {
-  dashboard:'Dashboard', produtos:'Produtos', movimentacoes:'Movimentações',
+  centro:'Centro de Operações', dashboard:'Dashboard', produtos:'Produtos', movimentacoes:'Movimentações',
   receitas:'Receitas', lotes:'Tratamento de Lotes', alertas:'Alertas',
   relatorios:'Relatórios', usuarios:'Usuários'
 };
@@ -851,6 +911,7 @@ document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('open');
     if(sec === 'relatorios') renderRelatorio('estoque');
+    if(sec === 'centro') renderCentroOperacoes();
   });
 });
 document.getElementById('btnMenuToggle').addEventListener('click', ()=>{
@@ -871,24 +932,24 @@ document.getElementById('btnAlertTop').addEventListener('click', ()=>{
 function initListeners(){
   unsubs.push(db.collection('produtos').onSnapshot(snap=>{
     produtos = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderProdutos(); renderDashboard(); renderAlertas(); fillProdutoSelects();
+    renderProdutos(); renderDashboard(); renderAlertas(); fillProdutoSelects(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('movimentacoes').orderBy('criadoEm','desc').onSnapshot(snap=>{
     movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderMovimentacoes(); renderDashboard();
+    renderMovimentacoes(); renderDashboard(); renderCentroOperacoes();
   }, ()=>{
     db.collection('movimentacoes').onSnapshot(snap=>{
       movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0));
-      renderMovimentacoes(); renderDashboard();
+      renderMovimentacoes(); renderDashboard(); renderCentroOperacoes();
     });
   }));
   unsubs.push(db.collection('receitas').onSnapshot(snap=>{
     receitas = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderReceitas(); fillReceitaSelect();
+    renderReceitas(); fillReceitaSelect(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
     lotes = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderLotes();
+    renderLotes(); renderCentroOperacoes();
   }));
   db.collection('usuarios').onSnapshot(snap=>{
     usuarios = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -905,7 +966,6 @@ function ringSvg(pct, color){
   return `<svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="${r}"/><circle class="fg" cx="26" cy="26" r="${r}" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"/></svg>`;
 }
 function renderDashboard(){
-  const totalValor = produtos.reduce((s,p)=> s + (Number(p.quantidade)||0) * (Number(p.valorUnitario)||0), 0);
   const qtdProdutos = produtos.length;
   const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
   const venc30 = produtos.filter(p=> { const d = daysUntil(p.validade); return d !== null && d >= 0 && d <= 30; });
@@ -918,7 +978,6 @@ function renderDashboard(){
   }).reduce((s,m)=> s + (Number(m.quantidade)||0), 0);
 
   const cards = [
-    {label:'Valor total em estoque', value: fmtMoney(totalValor), icon:'money', color:'var(--green)', pct:100},
     {label:'Produtos cadastrados', value: qtdProdutos, icon:'box', color:'var(--green)', pct:100},
     {label:'Vence em 30 dias', value: venc30.length, icon:'clock', color:'var(--warn)', pct: qtdProdutos?Math.round(venc30.length/qtdProdutos*100):0, cls: venc30.length?'warn':''},
     {label:'Produtos vencidos', value: vencidos.length, icon:'alert', color:'var(--danger)', pct: qtdProdutos?Math.round(vencidos.length/qtdProdutos*100):0, cls: vencidos.length?'danger':''},
@@ -981,6 +1040,264 @@ function renderDashboard(){
 }
 
 /* =========================================================
+   CENTRO DE OPERAÇÕES — página inicial, só com dados reais
+   (sem financeiro e sem "tratamento ao vivo" — não existem no
+   modelo de dados hoje; ficam para uma próxima etapa)
+========================================================= */
+let chartCoConsumo = null, chartCoCultivar = null;
+function getCoFiltros(){
+  return {
+    periodo: document.getElementById('coPeriodo').value,
+    cultivar: document.getElementById('coCultivar').value,
+    operador: document.getElementById('coOperador').value,
+    receita: document.getElementById('coReceita').value,
+    categoria: document.getElementById('coCategoria').value
+  };
+}
+function periodoRange(periodo){
+  const now = new Date(); now.setHours(0,0,0,0);
+  let start = new Date(now), end = new Date(now); end.setHours(23,59,59,999);
+  if(periodo==='ontem'){ start.setDate(start.getDate()-1); end = new Date(start); end.setHours(23,59,59,999); }
+  else if(periodo==='7d'){ start.setDate(start.getDate()-6); }
+  else if(periodo==='30d'){ start.setDate(start.getDate()-29); }
+  return { start, end };
+}
+function dataDentroPeriodo(dataStr, range){
+  if(!dataStr) return false;
+  const d = new Date(dataStr+'T12:00:00');
+  return d >= range.start && d <= range.end;
+}
+function populateCoFiltros(){
+  const mapas = [
+    ['coCultivar', [...new Set(lotes.map(l=>l.cultivar).filter(Boolean))].sort(), 'todas', 'Todos os cultivares'],
+    ['coOperador', [...new Set(lotes.map(l=>l.operador).filter(Boolean))].sort(), 'todos', 'Todos os operadores'],
+    ['coCategoria', [...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort(), 'todas', 'Todas categorias']
+  ];
+  mapas.forEach(([id, valores, valorPadrao, labelPadrao])=>{
+    const sel = document.getElementById(id);
+    const atual = sel.value;
+    sel.innerHTML = `<option value="${valorPadrao}">${labelPadrao}</option>` + valores.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(valores.includes(atual)) sel.value = atual;
+  });
+  const selReceita = document.getElementById('coReceita');
+  const atualReceita = selReceita.value;
+  selReceita.innerHTML = '<option value="todas">Todas as receitas</option>' + receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('');
+  if(receitas.some(r=>r.id===atualReceita)) selReceita.value = atualReceita;
+}
+function lotesFiltrados(){
+  const f = getCoFiltros();
+  const range = periodoRange(f.periodo);
+  return lotes.filter(l=>{
+    if(!dataDentroPeriodo(l.data, range)) return false;
+    if(f.cultivar!=='todas' && l.cultivar!==f.cultivar) return false;
+    if(f.operador!=='todos' && (l.operador||'')!==f.operador) return false;
+    if(f.receita!=='todas' && l.receitaId!==f.receita) return false;
+    return true;
+  });
+}
+function movsFiltradas(){
+  const f = getCoFiltros();
+  const range = periodoRange(f.periodo);
+  return movimentacoes.filter(m=>{
+    if(!dataDentroPeriodo(m.data, range)) return false;
+    if(f.categoria!=='todas'){
+      const produto = produtos.find(p=>p.id===m.produtoId);
+      if(!produto || produto.categoria!==f.categoria) return false;
+    }
+    return true;
+  });
+}
+function renderCentroOperacoes(){
+  if(!document.getElementById('coKpiGrid') || !produtos) return;
+  populateCoFiltros();
+  const lotesF = lotesFiltrados();
+  const movsF = movsFiltradas();
+
+  const vencidos = produtos.filter(p=> daysUntil(p.validade)!==null && daysUntil(p.validade)<0);
+  const venc30 = produtos.filter(p=>{ const d=daysUntil(p.validade); return d!==null && d>=0 && d<=30; });
+  const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
+
+  // status geral da UBS
+  let statusCor = 'var(--green)', statusTxt = 'Operação normal';
+  if(vencidos.length>0){ statusCor='var(--danger)'; statusTxt='Crítico'; }
+  else if(venc30.length>0 || baixoMin.length>0){ statusCor='var(--warn)'; statusTxt='Atenção'; }
+  document.getElementById('coStatusLabel').textContent = statusTxt;
+  document.getElementById('coStatusLabel').style.color = statusCor;
+  document.getElementById('coStatusRing').innerHTML = `
+    <svg viewBox="0 0 120 120" style="width:120px;height:120px;">
+      <circle cx="60" cy="60" r="50" fill="none" style="stroke:${statusCor}; opacity:.15;" stroke-width="10"/>
+      <circle cx="60" cy="60" r="50" fill="none" style="stroke:${statusCor};" stroke-width="10" stroke-linecap="round"/>
+    </svg>
+    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="stroke:${statusCor};" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/></svg>
+    </div>`;
+
+  // KPIs
+  const operadoresAtivos = new Set(lotesF.map(l=>l.operador).filter(Boolean));
+  const receitasEmUso = new Set(lotesF.map(l=>l.receitaId).filter(Boolean));
+  const sementesTratadas = lotesF.reduce((s,l)=>s+(Number(l.quantidadeSementes)||0),0);
+  const icons = {
+    box:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73Z"/><path d="M3.3 7 12 12l8.7-5"/>',
+    trend:'<path d="M22 17 13.5 8.5 8.5 13.5 2 7"/><path d="M16 17h6v-6"/>',
+    clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    seed:'<path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/>',
+    consumo:'<path d="M17 3 21 7l-4 4M21 7H9M7 21l-4-4 4-4M3 17h12"/>',
+    user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    receipt:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/><path d="M8 7h8M8 11h8"/>'
+  };
+  const kpis = [
+    {label:'Produtos cadastrados', value: produtos.length, icon:'box', color:'var(--green)'},
+    {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--green)', cls: baixoMin.length?'danger':''},
+    {label:'Vencendo em 30 dias', value: venc30.length, icon:'clock', color:'var(--green)', cls: venc30.length?'warn':''},
+    {label:'Lotes tratados no período', value: lotesF.length, icon:'seed', color:'var(--green)'},
+    {label:'Sementes tratadas (kg)', value: sementesTratadas.toLocaleString('pt-BR'), icon:'seed', color:'var(--green)'},
+    {label:'Movimentações no período', value: movsF.length, icon:'consumo', color:'var(--green)'},
+    {label:'Operadores em atividade', value: operadoresAtivos.size, icon:'user', color:'var(--green)'},
+    {label:'Receitas em uso', value: receitasEmUso.size, icon:'receipt', color:'var(--green)'}
+  ];
+  document.getElementById('coKpiGrid').innerHTML = kpis.map(k=>`
+    <div class="kpi-card">
+      <div class="kpi-ring">${ringSvg(100, k.color)}<div class="kpi-ring-icon" style="color:${k.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[k.icon]}</svg></div></div>
+      <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div></div>
+    </div>`).join('');
+
+  // Alertas inteligentes (só o que dá pra comprovar com dado real)
+  const alertas = [];
+  vencidos.forEach(p=> alertas.push({sev:'critico', texto:`${p.nome} está vencido`, nav:'produtos'}));
+  venc30.forEach(p=> alertas.push({sev:'atencao', texto:`${p.nome} vence em ${daysUntil(p.validade)} dia(s)`, nav:'produtos'}));
+  baixoMin.forEach(p=> alertas.push({sev:'atencao', texto:`${p.nome} abaixo do estoque mínimo (${p.quantidade} ${p.unidade})`, nav:'produtos'}));
+  receitas.forEach(r=>{
+    (r.itens||[]).forEach(i=>{
+      const candidatos = candidatosParaItem(i);
+      const temEstoque = candidatos.some(c=>Number(c.quantidade)>0);
+      if(!temEstoque) alertas.push({sev:'critico', texto:`Receita "${r.nome}" sem nenhum produto em estoque para ${i.produtoNome}`, nav:'receitas'});
+    });
+  });
+  const LIMITE_DIAS_PARADO = 60;
+  produtos.forEach(p=>{
+    const movsProduto = movimentacoes.filter(m=>m.produtoId===p.id && m.data);
+    if(!movsProduto.length) return;
+    const ultima = movsProduto.reduce((max,m)=> m.data>max?m.data:max, movsProduto[0].data);
+    const dias = Math.floor((new Date() - new Date(ultima+'T00:00:00'))/86400000);
+    if(dias>LIMITE_DIAS_PARADO) alertas.push({sev:'atencao', texto:`${p.nome} sem movimentação há ${dias} dias`, nav:'movimentacoes'});
+  });
+  document.getElementById('coAlertas').innerHTML = alertas.length ? alertas.slice(0,30).map(a=>`
+    <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
+      <span class="badge ${a.sev==='critico'?'badge-danger':'badge-warn'}">${a.sev==='critico'?'Crítico':'Atenção'}</span>
+      <span style="flex:1;">${esc(a.texto)}</span>
+      <button class="btn btn-ghost btn-sm" onclick="resolverAlerta('${a.nav}')">Resolver</button>
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum alerta no momento — tudo sob controle.</p>';
+
+  // Lotes tratados no período
+  document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
+    <div style="padding:10px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
+      <div style="display:flex; justify-content:space-between;"><b>${esc(l.cultivar)}</b><span style="color:var(--text-mute); font-size:12px;">${l.criadoEm ? new Date(l.criadoEm.seconds*1000).toLocaleString('pt-BR') : fmtDate(l.data)}</span></div>
+      <div style="color:var(--text-soft); font-size:12.5px;">Lote ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${l.quantidadeSementes} kg</div>
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum lote tratado nesse período.</p>';
+
+  // Consumo de produtos (por dia, dentro do período filtrado)
+  const range = periodoRange(getCoFiltros().periodo);
+  const dias = [];
+  { let cursor = new Date(range.start); while(cursor <= range.end){ dias.push(new Date(cursor)); cursor.setDate(cursor.getDate()+1); } }
+  const consumoPorDia = dias.map(d=>{
+    const diaStr = d.toISOString().slice(0,10);
+    return movsF.filter(m=>m.tipo==='saida' && m.data===diaStr).reduce((s,m)=>s+(Number(m.quantidade)||0),0);
+  });
+  if(chartCoConsumo) chartCoConsumo.destroy();
+  chartCoConsumo = new Chart(document.getElementById('chartCoConsumo'), {
+    type:'bar',
+    data:{ labels: dias.map(d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), datasets:[{ data:consumoPorDia, backgroundColor:'#2E7D4F', borderRadius:6, maxBarThickness:28 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{grid:{color:'#EEF1EF'}}, x:{grid:{display:false}} } }
+  });
+
+  // Consumo por cultivar (kg de sementes tratadas)
+  const porCultivar = {};
+  lotesF.forEach(l=>{ porCultivar[l.cultivar] = (porCultivar[l.cultivar]||0) + (Number(l.quantidadeSementes)||0); });
+  if(chartCoCultivar) chartCoCultivar.destroy();
+  chartCoCultivar = new Chart(document.getElementById('chartCoCultivar'), {
+    type:'bar',
+    data:{ labels:Object.keys(porCultivar), datasets:[{ data:Object.values(porCultivar), backgroundColor:'#2E7D4F', borderRadius:6 }]},
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'#EEF1EF'}}, y:{grid:{display:false}} } }
+  });
+
+  // Estoque em tempo real
+  const f = getCoFiltros();
+  const produtosFiltrados = produtos.filter(p=> f.categoria==='todas' || p.categoria===f.categoria);
+  document.getElementById('coEstoqueTabela').innerHTML = `
+    <table><thead><tr><th>Produto</th><th>Categoria</th><th>Lote</th><th>Estoque</th><th>Situação</th><th>Validade</th></tr></thead>
+    <tbody>${produtosFiltrados.map(p=>{
+      const d = daysUntil(p.validade);
+      const pct = p.estoqueMinimo ? Math.min(100, Math.round((p.quantidade/(p.estoqueMinimo*2))*100)) : 100;
+      let cls='badge-ok', label='Normal', barCor='var(--green)';
+      if(Number(p.quantidade)<=Number(p.estoqueMinimo||0) || (d!==null && d<0)){ cls='badge-danger'; label='Crítico'; barCor='var(--danger)'; }
+      else if(d!==null && d<=30){ cls='badge-warn'; label='Atenção'; barCor='var(--warn)'; }
+      return `<tr>
+        <td><b>${esc(p.nome)}</b></td><td>${esc(p.categoria||'—')}</td><td>${esc(p.lote||'—')}</td>
+        <td>${p.quantidade} ${esc(p.unidade)}<div class="progress-bar" style="width:90px;"><div class="progress-fill" style="width:${pct}%; background:${barCor};"></div></div></td>
+        <td><span class="badge ${cls}">${label}</span></td>
+        <td>${d===null?'—':(d<0?'Vencido':d+' dias')}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  // Próximos a vencer
+  document.getElementById('coVencendoGrid').innerHTML = venc30.length ? venc30.slice().sort((a,b)=>daysUntil(a.validade)-daysUntil(b.validade)).map(p=>`
+    <div class="kpi-card" style="align-items:flex-start;">
+      <div class="kpi-body" style="width:100%;">
+        <div class="kpi-label">${esc(p.nome)}</div>
+        <div class="kpi-value warn" style="font-size:18px;">${daysUntil(p.validade)} dias</div>
+        <div class="kpi-sub">Lote ${esc(p.lote||'—')} · ${p.quantidade} ${esc(p.unidade)} · ${esc(p.local||'sem local')}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="verProdutoNoCentro('${p.id}')">Ver produto</button>
+      </div>
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum produto vencendo nos próximos 30 dias.</p>';
+
+  // Últimas movimentações (até 20, respeitando filtros)
+  const ultimasMovs = movsF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).slice(0,20);
+  document.getElementById('coMovimentacoes').innerHTML = ultimasMovs.length ? `<table><thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Responsável</th></tr></thead><tbody>${ultimasMovs.map(m=>`
+    <tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td><td>${m.quantidade}</td><td>${esc(m.responsavel||'—')}</td></tr>`).join('')}</tbody></table>` : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma movimentação no período.</p>';
+
+  // Ranking de receitas mais utilizadas
+  const usoReceitas = {};
+  lotesF.forEach(l=>{
+    if(!usoReceitas[l.receitaId]) usoReceitas[l.receitaId] = {nome:l.receitaNome, usos:0, sementes:0};
+    usoReceitas[l.receitaId].usos++;
+    usoReceitas[l.receitaId].sementes += Number(l.quantidadeSementes)||0;
+  });
+  const rankArr = Object.values(usoReceitas).sort((a,b)=>b.usos-a.usos);
+  const maxUsos = rankArr[0] ? rankArr[0].usos : 1;
+  document.getElementById('coRankingReceitas').innerHTML = rankArr.length ? rankArr.map(r=>`
+    <div style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:13px;"><b>${esc(r.nome)}</b><span>${r.usos}x · ${r.sementes.toLocaleString('pt-BR')} kg</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.round(r.usos/maxUsos*100)}%;"></div></div>
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma receita utilizada no período.</p>';
+
+  // Timeline da operação
+  const eventos = [];
+  movsF.forEach(m=>{
+    const produto = produtos.find(p=>p.id===m.produtoId);
+    eventos.push({ ts: m.criadoEm ? m.criadoEm.seconds*1000 : new Date(m.data).getTime(), texto: `${m.tipo==='entrada'?'Entrada':'Saída'} de ${m.produtoNome} — ${m.quantidade} ${produto?produto.unidade:''} (${m.motivo})` });
+  });
+  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : new Date(l.data).getTime(), texto: `Lote ${l.numeroLote} tratado — ${l.cultivar} (${l.receitaNome})` }));
+  eventos.sort((a,b)=>b.ts-a.ts);
+  document.getElementById('coTimeline').innerHTML = eventos.length ? eventos.slice(0,50).map(e=>`
+    <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
+      <span style="color:var(--text-mute); min-width:130px;">${new Date(e.ts).toLocaleString('pt-BR')}</span>
+      <span>${esc(e.texto)}</span>
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum evento no período.</p>';
+}
+function verProdutoNoCentro(id){
+  document.querySelector('.nav-item[data-section="produtos"]').click();
+  const produto = produtos.find(p=>p.id===id);
+  if(produto){ document.getElementById('globalSearch').value = produto.nome; renderProdutos(); }
+}
+function resolverAlerta(nav){
+  const item = document.querySelector(`.nav-item[data-section="${nav}"]`);
+  if(item) item.click();
+}
+['coPeriodo','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', renderCentroOperacoes);
+});
+
+/* =========================================================
    PRODUTOS
 ========================================================= */
 let editingProdutoId = null;
@@ -993,13 +1310,11 @@ function openProdutoModal(p){
   document.getElementById('pFabricante').value = p?.fabricante || '';
   document.getElementById('pIngrediente').value = p?.ingredienteAtivo || '';
   document.getElementById('pLote').value = p?.lote || '';
-  document.getElementById('pFabricacao').value = p?.fabricacao || '';
   document.getElementById('pValidade').value = p?.validade || '';
   document.getElementById('pUnidade').value = p?.unidade || 'L';
   document.getElementById('pQuantidade').value = p?.quantidade ?? '';
   document.getElementById('pMinimo').value = p?.estoqueMinimo ?? '';
   document.getElementById('pLocal').value = p?.local || '';
-  document.getElementById('pValor').value = p?.valorUnitario ?? '';
   document.getElementById('pObs').value = p?.observacoes || '';
   openModal('modalProduto');
 }
@@ -1011,19 +1326,17 @@ document.getElementById('btnSalvarProduto').addEventListener('click', ()=>{
     fabricante: document.getElementById('pFabricante').value.trim(),
     ingredienteAtivo: document.getElementById('pIngrediente').value.trim(),
     lote: document.getElementById('pLote').value.trim(),
-    fabricacao: document.getElementById('pFabricacao').value,
     validade: document.getElementById('pValidade').value,
     unidade: document.getElementById('pUnidade').value,
     quantidade: Number(document.getElementById('pQuantidade').value)||0,
     estoqueMinimo: Number(document.getElementById('pMinimo').value)||0,
     local: document.getElementById('pLocal').value.trim(),
-    valorUnitario: Number(document.getElementById('pValor').value)||0,
     observacoes: document.getElementById('pObs').value.trim(),
     atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
   };
   const promise = editingProdutoId
     ? db.collection('produtos').doc(editingProdutoId).update(data)
-    : db.collection('produtos').add({...data, criadoEm: firebase.firestore.FieldValue.serverTimestamp(), qrData: uid()});
+    : db.collection('produtos').add({...data, criadoEm: firebase.firestore.FieldValue.serverTimestamp()});
   promise.then(()=>{ closeModal('modalProduto'); toast('Produto salvo com sucesso'); })
     .catch(()=> toast('Erro ao salvar produto', true));
 });
@@ -1053,10 +1366,8 @@ function renderProdutos(){
       <td>${p.validade ? fmtDate(p.validade) : '—'}</td>
       <td><b>${p.quantidade} ${esc(p.unidade)}</b></td>
       <td>${p.estoqueMinimo} ${esc(p.unidade)}</td>
-      <td>${fmtMoney(p.valorUnitario)}</td>
       <td><span class="badge ${st.cls}">${st.label}</span></td>
       <td><div class="tbl-actions">
-        <button onclick='showQr(${JSON.stringify(p.id)})' title="QR Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M20 14v3h-3M14 21h7"/></svg></button>
         <button onclick='editProduto(${JSON.stringify(p.id)})' title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
         <button onclick='delProduto(${JSON.stringify(p.id)})' title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
       </div></td>
@@ -1067,14 +1378,6 @@ function editProduto(id){ openProdutoModal(produtos.find(p=>p.id===id)); }
 function delProduto(id){
   if(!confirm('Excluir este produto? Esta ação não pode ser desfeita.')) return;
   db.collection('produtos').doc(id).delete().then(()=>toast('Produto excluído')).catch(()=>toast('Erro ao excluir', true));
-}
-function showQr(id){
-  const p = produtos.find(x=>x.id===id);
-  document.getElementById('qrHolder').innerHTML = '';
-  new QRCode(document.getElementById('qrHolder'), { text: p.qrData || p.id, width:180, height:180, colorDark:'#1B4332', colorLight:'#ffffff' });
-  document.getElementById('qrProdutoNome').textContent = p.nome;
-  document.getElementById('qrProdutoLote').textContent = 'Lote: ' + (p.lote || '—');
-  openModal('modalVerProduto');
 }
 document.querySelectorAll('.chip-filter[data-filter-cat]').forEach(el=>{
   el.addEventListener('click', ()=>{
@@ -1220,6 +1523,7 @@ document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
     const produto = produtos.find(p=>p.id===sel.value);
     return {
       produtoId: sel.value, produtoNome: produto?produto.nome:'', unidade: produto?produto.unidade:'',
+      ingredienteAtivo: produto?produto.ingredienteAtivo||'':'',
       dosePorKg: Number(row.querySelector('.ri-dose').value)||0
     };
   }).filter(i=>i.produtoId && i.dosePorKg>0);
@@ -1246,8 +1550,11 @@ function renderReceitas(){
           </button>
         </div>
       </div>
-      ${r.itens.map(i=>`<div style="display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid #F0F2F1;">
-        <span>${esc(i.produtoNome)}</span><b>${i.dosePorKg != null ? i.dosePorKg : deriveDoseMlPorKg(i)} mL/kg</b>
+      ${r.itens.map(i=>`<div style="padding:5px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span>${esc(i.produtoNome)}</span><b>${i.dosePorKg != null ? i.dosePorKg : deriveDoseMlPorKg(i)} mL/kg</b>
+        </div>
+        ${i.ingredienteAtivo ? `<div style="font-size:11px; color:var(--text-mute);">Substitui por: qualquer produto com "${esc(i.ingredienteAtivo)}"</div>` : `<div style="font-size:11px; color:var(--warn);">Sem ingrediente ativo — sem substituição automática</div>`}
       </div>`).join('')}
       ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn); margin-top:8px;">⚠ Receita antiga (base 100kg) — valor acima é uma conversão automática, confira e salve novamente.</p>' : ''}
       ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
@@ -1264,6 +1571,7 @@ function fillReceitaSelect(){
 /* =========================================================
    LOTES DE TRATAMENTO
 ========================================================= */
+let loteItensAtuais = []; // estado interativo do preview (permite trocar produto substituto)
 document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   fillReceitaSelect();
   document.getElementById('lCultivar').value = '';
@@ -1271,33 +1579,82 @@ document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   document.getElementById('lQuantidade').value = '';
   document.getElementById('lOperador').value = '';
   document.getElementById('lData').value = todayISO();
+  loteItensAtuais = [];
   document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.';
   openModal('modalLote');
 });
+function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
+function candidatosParaItem(item){
+  const ref = produtos.find(p=>p.id===item.produtoId);
+  const ingrediente = normalizeTxt(item.ingredienteAtivo || (ref?ref.ingredienteAtivo:''));
+  let candidatos = ingrediente
+    ? produtos.filter(p=> normalizeTxt(p.ingredienteAtivo)===ingrediente)
+    : (ref ? [ref] : []);
+  if(!candidatos.length && ref) candidatos = [ref];
+  return candidatos;
+}
 function calcularConsumoLote(){
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
   const kg = Number(document.getElementById('lQuantidade').value)||0;
-  if(!receita || !kg){ document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.'; return null; }
-  const itens = receita.itens.map(i=>{
-    const produto = produtos.find(p=>p.id===i.produtoId);
-    const unidadeEstoque = produto ? produto.unidade : i.unidade;
+  if(!receita || !kg){ loteItensAtuais = []; document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.'; return null; }
+  const anterior = loteItensAtuais;
+  loteItensAtuais = receita.itens.map((i, idx)=>{
+    const candidatos = candidatosParaItem(i);
     const doseMlPorKg = deriveDoseMlPorKg(i);
-    const fatorConversao = convFactor('mL', unidadeEstoque);
-    const consumo = +(doseMlPorKg * kg * fatorConversao).toFixed(4);
-    const disponivel = produto ? Number(produto.quantidade) : 0;
-    return { produtoId:i.produtoId, produtoNome:i.produtoNome, unidade:unidadeEstoque, consumo, disponivel, suficiente: disponivel>=consumo };
+    // mantém a seleção anterior se ela ainda for uma opção válida; senão prioriza quem tem estoque suficiente
+    const selecaoAnterior = anterior[idx] && anterior[idx].receitaItemNome===i.produtoNome ? anterior[idx].selectedProdutoId : null;
+    let selectedProdutoId = (selecaoAnterior && candidatos.some(c=>c.id===selecaoAnterior)) ? selecaoAnterior : null;
+    if(!selectedProdutoId){
+      const comEstoque = candidatos.find(c=>{
+        const fator = convFactor('mL', c.unidade);
+        return Number(c.quantidade) >= doseMlPorKg*kg*fator;
+      });
+      selectedProdutoId = comEstoque ? comEstoque.id : (candidatos[0] ? candidatos[0].id : i.produtoId);
+    }
+    return { receitaItemNome:i.produtoNome, doseMlPorKg, candidatos, selectedProdutoId };
   });
-  document.getElementById('lotePreview').innerHTML = itens.map(i=>{
-    const pct = i.disponivel ? Math.min(100, Math.round((i.consumo/i.disponivel)*100)) : 100;
-    return `<div style="margin-bottom:10px;">
-      <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <span>${esc(i.produtoNome)}</span>
-        <b style="color:${i.suficiente?'var(--green-dark)':'var(--danger)'}">${i.consumo} ${esc(i.unidade)} ${i.suficiente?'':' — estoque insuficiente!'}</b>
+  renderLotePreview();
+  return getLoteConsumoFinal(kg);
+}
+function renderLotePreview(){
+  const kg = Number(document.getElementById('lQuantidade').value)||0;
+  document.getElementById('lotePreview').innerHTML = loteItensAtuais.map((item, idx)=>{
+    const produto = produtos.find(p=>p.id===item.selectedProdutoId);
+    const unidade = produto ? produto.unidade : '';
+    const fator = convFactor('mL', unidade);
+    const consumo = +(item.doseMlPorKg * kg * fator).toFixed(4);
+    const disponivel = produto ? Number(produto.quantidade) : 0;
+    const suficiente = disponivel >= consumo;
+    const pct = disponivel ? Math.min(100, Math.round((consumo/disponivel)*100)) : 100;
+    const temAlternativas = item.candidatos.length > 1;
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px;">
+        ${temAlternativas
+          ? `<select style="flex:1; padding:5px 8px; border:1.5px solid var(--border); border-radius:7px; font-size:12.5px;" onchange="onLoteSubstitutoChange(${idx}, this.value)">
+              ${item.candidatos.map(c=>`<option value="${c.id}" ${c.id===item.selectedProdutoId?'selected':''}>${esc(c.nome)} (${c.quantidade} ${esc(c.unidade)} em estoque)</option>`).join('')}
+            </select>`
+          : `<span>${esc(produto ? produto.nome : item.receitaItemNome)}</span>`
+        }
+        <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${consumo} ${esc(unidade)} ${suficiente?'':' — insuficiente!'}</b>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${i.suficiente?'var(--green)':'var(--danger)'}"></div></div>
+      ${temAlternativas ? '<div style="font-size:11px; color:var(--text-mute); margin-top:2px;">Mesmo ingrediente ativo — pode trocar o produto usado</div>' : ''}
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${suficiente?'var(--green)':'var(--danger)'}"></div></div>
     </div>`;
   }).join('');
-  return itens;
+}
+function onLoteSubstitutoChange(idx, produtoId){
+  loteItensAtuais[idx].selectedProdutoId = produtoId;
+  renderLotePreview();
+}
+function getLoteConsumoFinal(kg){
+  return loteItensAtuais.map(item=>{
+    const produto = produtos.find(p=>p.id===item.selectedProdutoId);
+    const unidade = produto ? produto.unidade : '';
+    const fator = convFactor('mL', unidade);
+    const consumo = +(item.doseMlPorKg * kg * fator).toFixed(4);
+    const disponivel = produto ? Number(produto.quantidade) : 0;
+    return { produtoId: item.selectedProdutoId, produtoNome: produto?produto.nome:item.receitaItemNome, unidade, consumo, disponivel, suficiente: disponivel>=consumo };
+  });
 }
 ['lQuantidade','lReceita'].forEach(id=> document.getElementById(id).addEventListener('input', calcularConsumoLote));
 document.getElementById('lReceita').addEventListener('change', calcularConsumoLote);
@@ -1308,7 +1665,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const kg = Number(document.getElementById('lQuantidade').value);
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
   if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos do lote', true); return; }
-  const itens = calcularConsumoLote();
+  const itens = getLoteConsumoFinal(kg);
   if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
   const insuficiente = itens.find(i=>!i.suficiente);
   if(insuficiente){ toast('Estoque insuficiente de ' + insuficiente.produtoNome, true); return; }
@@ -1393,10 +1750,9 @@ function renderRelatorio(key){
   const resumo = document.getElementById('relatorioResumo');
 
   if(key==='estoque'){
-    const totalValor = produtos.reduce((s,p)=>s+(Number(p.quantidade)||0)*(Number(p.valorUnitario)||0),0);
-    resumo.innerHTML = `<b>Valor total do estoque:</b> ${fmtMoney(totalValor)} · <b>Itens:</b> ${produtos.length}`;
-    head.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Validade</th><th>Valor unit.</th><th>Valor total</th></tr>';
-    body.innerHTML = produtos.map(p=>`<tr><td>${esc(p.nome)}</td><td>${esc(p.categoria)}</td><td>${p.quantidade} ${esc(p.unidade)}</td><td>${p.estoqueMinimo}</td><td>${p.validade?fmtDate(p.validade):'—'}</td><td>${fmtMoney(p.valorUnitario)}</td><td>${fmtMoney((p.quantidade||0)*(p.valorUnitario||0))}</td></tr>`).join('');
+    resumo.innerHTML = `<b>Itens cadastrados:</b> ${produtos.length}`;
+    head.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Validade</th></tr>';
+    body.innerHTML = produtos.map(p=>`<tr><td>${esc(p.nome)}</td><td>${esc(p.categoria)}</td><td>${p.quantidade} ${esc(p.unidade)}</td><td>${p.estoqueMinimo}</td><td>${p.validade?fmtDate(p.validade):'—'}</td></tr>`).join('');
   }
   else if(key==='movimentacoes'){
     resumo.innerHTML = `<b>Total de movimentações:</b> ${movimentacoes.length}`;
