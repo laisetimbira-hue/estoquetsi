@@ -261,7 +261,7 @@ tbody tr:hover{background:#FAFCFA;}
 .recipe-item-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
 .recipe-item-row .ri-produto{flex:2;}
 .recipe-item-row .ri-dose{flex:1;}
-.recipe-item-row .ri-unidade{flex:0 0 78px;}
+.recipe-item-row .ri-dose{flex:1;}
 .recipe-item-row button{flex-shrink:0;}
 
 .dose-ring-wrap{display:flex; flex-direction:column; align-items:center; gap:6px;}
@@ -633,7 +633,7 @@ tbody tr:hover{background:#FAFCFA;}
     <div class="modal-head"><div class="modal-title">Nova receita</div><button class="modal-close" onclick="closeModal('modalReceita')">✕</button></div>
     <div class="modal-body">
       <div class="field"><label>Nome da receita</label><input id="rNome" placeholder="Ex: Padrão Soja Premium"></div>
-      <div class="field full" style="margin-top:14px;"><label>Produtos e dose por 100 kg de sementes</label>
+      <div class="field full" style="margin-top:14px;"><label>Produtos e dose (mL por kg de sementes)</label>
         <div id="recipeItemsWrap"></div>
         <button class="btn btn-ghost btn-sm" id="btnAddRecipeItem" style="margin-top:6px;">+ Adicionar produto</button>
       </div>
@@ -1178,33 +1178,30 @@ function openReceitaModalEdit(id){
   openModal('modalReceita');
 }
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
+function deriveDoseMlPorKg(item){
+  if(!item) return '';
+  if(item.dosePorKg != null) return item.dosePorKg;
+  // compatibilidade com receitas antigas (base 100kg, com unidade própria)
+  const doseUnidade = item.doseUnidade || item.unidade || 'mL';
+  const valorPorKg = (item.dosePor100kg||0) / 100;
+  const fator = convFactor(doseUnidade, 'mL');
+  return +(valorPorKg * fator).toFixed(4);
+}
 function addRecipeItemRow(existing){
   const row = document.createElement('div');
   row.className = 'recipe-item-row';
   const opts = produtos.map(p=>`<option value="${p.id}" data-unidade="${p.unidade}">${esc(p.nome)}</option>`).join('');
   row.innerHTML = `
     <select class="ri-produto">${opts || '<option value="">Cadastre um produto primeiro</option>'}</select>
-    <input class="ri-dose" type="number" step="0.001" placeholder="Dose / 100kg">
-    <select class="ri-unidade"></select>
+    <input class="ri-dose" type="number" step="0.001" placeholder="Dose (mL/kg)">
+    <span style="font-size:12.5px; color:var(--text-mute); flex-shrink:0;">mL/kg</span>
     <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">✕</button>`;
   document.getElementById('recipeItemsWrap').appendChild(row);
   const selProduto = row.querySelector('.ri-produto');
-  const selUnidade = row.querySelector('.ri-unidade');
   const doseInput = row.querySelector('.ri-dose');
-  function refreshUnidadeOptions(preferido){
-    const produto = produtos.find(p=>p.id===selProduto.value);
-    const unidadeEstoque = produto ? produto.unidade : 'L';
-    const opcoes = unidadeEstoque==='kg' ? ['g','kg'] : ['mL','L'];
-    selUnidade.innerHTML = opcoes.map(u=>`<option value="${u}">${u}</option>`).join('');
-    selUnidade.value = (preferido && opcoes.includes(preferido)) ? preferido : opcoes[0];
-  }
-  selProduto.addEventListener('change', ()=>refreshUnidadeOptions());
   if(existing){
     selProduto.value = existing.produtoId;
-    doseInput.value = existing.dosePor100kg;
-    refreshUnidadeOptions(existing.doseUnidade || existing.unidade);
-  } else {
-    refreshUnidadeOptions();
+    doseInput.value = deriveDoseMlPorKg(existing);
   }
 }
 function convFactor(from, to){
@@ -1223,10 +1220,9 @@ document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
     const produto = produtos.find(p=>p.id===sel.value);
     return {
       produtoId: sel.value, produtoNome: produto?produto.nome:'', unidade: produto?produto.unidade:'',
-      doseUnidade: row.querySelector('.ri-unidade').value,
-      dosePor100kg: Number(row.querySelector('.ri-dose').value)||0
+      dosePorKg: Number(row.querySelector('.ri-dose').value)||0
     };
-  }).filter(i=>i.produtoId && i.dosePor100kg>0);
+  }).filter(i=>i.produtoId && i.dosePorKg>0);
   if(!itens.length){ toast('Adicione ao menos um produto com dose', true); return; }
   const dados = { nome, itens, observacoes: document.getElementById('rObs').value.trim() };
   const promise = editingReceitaId
@@ -1242,7 +1238,7 @@ function renderReceitas(){
       <div class="card-head" style="margin-bottom:10px;">
         <div class="card-title">${esc(r.nome)}</div>
         <div style="margin-left:auto; display:flex; gap:6px;">
-          <button style="border:none; background:none; color:var(--text-soft); width:28px; height:28px; border-radius:7px;" onclick="openReceitaModalEdit('${r.id}')" title="Editar (corrigir unidade da dose)">
+          <button style="border:none; background:none; color:var(--text-soft); width:28px; height:28px; border-radius:7px;" onclick="openReceitaModalEdit('${r.id}')" title="Editar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
           </button>
           <button style="border:none; background:none; color:var(--danger); width:28px; height:28px; border-radius:7px;" onclick="delReceita('${r.id}')" title="Excluir">
@@ -1251,9 +1247,9 @@ function renderReceitas(){
         </div>
       </div>
       ${r.itens.map(i=>`<div style="display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid #F0F2F1;">
-        <span>${esc(i.produtoNome)}</span><b>${i.dosePor100kg} ${esc(i.doseUnidade || i.unidade)}/100kg</b>
+        <span>${esc(i.produtoNome)}</span><b>${i.dosePorKg != null ? i.dosePorKg : deriveDoseMlPorKg(i)} mL/kg</b>
       </div>`).join('')}
-      ${!r.itens.some(i=>i.doseUnidade) ? '<p style="font-size:11.5px; color:var(--warn); margin-top:8px;">⚠ Receita antiga — confira a unidade da dose clicando em editar.</p>' : ''}
+      ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn); margin-top:8px;">⚠ Receita antiga (base 100kg) — valor acima é uma conversão automática, confira e salve novamente.</p>' : ''}
       ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
     </div>`).join('');
 }
@@ -1282,13 +1278,12 @@ function calcularConsumoLote(){
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
   const kg = Number(document.getElementById('lQuantidade').value)||0;
   if(!receita || !kg){ document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.'; return null; }
-  const fator = kg/100;
   const itens = receita.itens.map(i=>{
     const produto = produtos.find(p=>p.id===i.produtoId);
     const unidadeEstoque = produto ? produto.unidade : i.unidade;
-    const doseUnidade = i.doseUnidade || i.unidade; // compatível com receitas antigas
-    const fatorConversao = convFactor(doseUnidade, unidadeEstoque);
-    const consumo = +(i.dosePor100kg * fator * fatorConversao).toFixed(4);
+    const doseMlPorKg = deriveDoseMlPorKg(i);
+    const fatorConversao = convFactor('mL', unidadeEstoque);
+    const consumo = +(doseMlPorKg * kg * fatorConversao).toFixed(4);
     const disponivel = produto ? Number(produto.quantidade) : 0;
     return { produtoId:i.produtoId, produtoNome:i.produtoNome, unidade:unidadeEstoque, consumo, disponivel, suficiente: disponivel>=consumo };
   });
