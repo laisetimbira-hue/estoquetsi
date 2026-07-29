@@ -712,7 +712,31 @@ tbody tr:hover{background:#FAFCFA;}
     <div class="modal-head"><div class="modal-title">Tratar novo lote</div><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>Cultivar</label><input id="lCultivar" placeholder="Ex: NA 5909"></div>
+        <div class="field"><label>Cultivar</label>
+          <select id="lCultivar">
+            <option value="Zeus">Zeus (55I57RSF IPRO)</option>
+            <option value="Orion">Orion (55IX56RSF I2X)</option>
+            <option value="Titanium">Titanium (56IX58RSF I2X)</option>
+            <option value="Torque">Torque (57IX60RSF I2X)</option>
+            <option value="Grafeno">Grafeno (57K56RSF CE)</option>
+            <option value="Vênus">Vênus (57K58RSF CE)</option>
+            <option value="Raça">Raça (63E66RSF E)</option>
+            <option value="Fibra">Fibra (64I61RSF IPRO)</option>
+            <option value="Nexus">Nexus (64IX66RSF I2X)</option>
+            <option value="Raio">Raio (50I52RSF IPRO)</option>
+            <option value="Imune">Imune (53IX55RSF I2X)</option>
+            <option value="Ativa">Ativa (BMX ATIVA RR)</option>
+            <option value="C2530RR">C2530 · Roundup Ready</option>
+            <option value="C2535CE">C2535 · Conkesta E3</option>
+            <option value="C2550E">C2550 · Enlist E3</option>
+            <option value="C2560CE">C2560 · Conkesta E3</option>
+            <option value="C2575E">C2575 · Enlist E3</option>
+            <option value="C2605E">C2605 · Enlist E3</option>
+            <option value="C2645CE">C2645 · Conkesta E3</option>
+            <option value="Outro">Outro (digitar manualmente)</option>
+          </select>
+          <input id="lCultivarManual" placeholder="Digite o nome do cultivar" style="display:none; margin-top:8px;">
+        </div>
         <div class="field"><label>Número do lote</label><input id="lLote" placeholder="Ex: 26S310H"></div>
         <div class="field"><label>Quantidade de sementes (kg)</label><input type="number" step="0.01" id="lQuantidade" placeholder="0"></div>
         <div class="field"><label>Receita utilizada</label><select id="lReceita"></select></div>
@@ -1588,7 +1612,9 @@ function fillReceitaSelect(){
 let loteItensAtuais = []; // estado interativo do preview (permite trocar produto substituto)
 document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   fillReceitaSelect();
-  document.getElementById('lCultivar').value = '';
+  document.getElementById('lCultivar').value = 'Zeus';
+  document.getElementById('lCultivarManual').value = '';
+  document.getElementById('lCultivarManual').style.display = 'none';
   document.getElementById('lLote').value = '';
   document.getElementById('lQuantidade').value = '';
   document.getElementById('lOperador').value = '';
@@ -1597,6 +1623,13 @@ document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   document.getElementById('lotePreview').textContent = 'Informe a quantidade de sementes e a receita para calcular.';
   openModal('modalLote');
 });
+document.getElementById('lCultivar').addEventListener('change', function(){
+  document.getElementById('lCultivarManual').style.display = this.value==='Outro' ? 'block' : 'none';
+});
+function getCultivarSelecionado(){
+  const sel = document.getElementById('lCultivar').value;
+  return sel==='Outro' ? document.getElementById('lCultivarManual').value.trim() : sel;
+}
 function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
 function candidatosParaItem(item){
   const ref = produtos.find(p=>p.id===item.produtoId);
@@ -1674,7 +1707,7 @@ function getLoteConsumoFinal(kg){
 document.getElementById('lReceita').addEventListener('change', calcularConsumoLote);
 
 document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
-  const cultivar = document.getElementById('lCultivar').value.trim();
+  const cultivar = getCultivarSelecionado();
   const numeroLote = document.getElementById('lLote').value.trim();
   const kg = Number(document.getElementById('lQuantidade').value);
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
