@@ -30,11 +30,12 @@
   --border: #E2E8E5;
   --text: #1C2521;
   --text-soft: #5B6B64;
-  --text-mute: #8A9691;
+  --text-mute: #66736D;
   --danger: #D64545;
   --danger-soft: #FBEAEA;
   --warn: #E2A93B;
   --warn-soft: #FBF3E2;
+  --warn-text: #8A5F10;
   --ok: #2E7D4F;
   --radius: 12px;
   --radius-sm: 8px;
@@ -184,7 +185,7 @@ input, select, textarea{font-family:inherit;}
 .kpi-label{font-size:12px; color:var(--text-mute); font-weight:600; text-transform:uppercase; letter-spacing:.03em; margin-bottom:3px;}
 .kpi-value{font-size:22px; font-weight:800; font-family:'Sora'; letter-spacing:-.02em; line-height:1.1;}
 .kpi-value.danger{color:var(--danger);}
-.kpi-value.warn{color:var(--warn);}
+.kpi-value.warn{color:var(--warn-text);}
 .kpi-sub{font-size:11.5px; color:var(--text-mute); margin-top:2px;}
 
 .grid-2{display:grid; grid-template-columns:1.4fr 1fr; gap:18px;}
@@ -201,7 +202,7 @@ input, select, textarea{font-family:inherit;}
   font-size:12.5px; font-weight:600; color:var(--text-soft); background:var(--surface);
 }
 .chip-filter.active{background:var(--green-soft); border-color:var(--green); color:var(--green-dark);}
-.table-wrap{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
+.table-wrap{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow-x:auto; box-shadow:var(--shadow); -webkit-overflow-scrolling:touch;}
 table{width:100%; border-collapse:collapse; font-size:13.5px;}
 thead th{
   text-align:left; padding:12px 16px; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
@@ -272,11 +273,17 @@ tbody tr:hover{background:#FAFCFA;}
 
 #printReport{ display:none; }
 @media print{
-  body *{ visibility:hidden; }
-  #printReport, #printReport *{ visibility:visible; }
-  #printReport{ display:block; position:absolute; top:0; left:0; width:100%; padding:28px 34px; }
+  /* some o app inteiro (não só esconde) para o relatório ocupar a página toda */
+  #app, #login-screen, #loadingScreen, .modal-overlay, #toast-wrap, .sidebar-overlay{ display:none !important; }
+  #printReport{ display:block !important; position:static; width:100%; padding:0; }
   @page{ margin:14mm; }
-  body{ background:#fff; }
+  html, body{ background:#fff !important; overflow:visible !important; }
+  .print-table{ page-break-inside:auto; }
+  .print-table tr{ page-break-inside:avoid; }
+  .print-table thead{ display:table-header-group; }
+  .print-table thead th, .print-header, .print-resumo, .print-table tbody tr:nth-child(even){
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
 }
 .print-header{ display:flex; align-items:center; gap:14px; border-bottom:3px solid #2E7D4F; padding-bottom:16px; margin-bottom:20px; }
 .print-mark{ width:44px; height:44px; border-radius:11px; background:linear-gradient(145deg,#2E7D4F,#1B4332); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -291,8 +298,17 @@ tbody tr:hover{background:#FAFCFA;}
 .print-table tbody tr:nth-child(even){ background:#F4F6F5; }
 .print-footer{ margin-top:22px; padding-top:12px; border-top:1px solid #E2E8E5; font-size:10.5px; color:#8A9691; display:flex; justify-content:space-between; }
 
+.co-top{ grid-template-columns:220px 1fr; }
+.grid-2 > *, .card, .kpi-body{ min-width:0; }
+.badge{ white-space:nowrap; }
+
 @media (max-width:900px){
   .shell{grid-template-columns:1fr;}
+  .co-top{ grid-template-columns:1fr; }
+  .table-wrap table, .card table{ min-width:600px; }
+  .recipe-item-row{ flex-wrap:wrap; }
+  .recipe-item-row .ri-produto{ flex:1 1 100%; }
+  .recipe-item-row .ri-dose{ flex:1 1 120px; }
   .sidebar{position:fixed; left:-260px; top:0; width:248px; transition:left .2s ease; box-shadow:var(--shadow-lg);}
   .sidebar.open{left:0;}
   .menu-toggle{display:flex;}
@@ -438,7 +454,7 @@ tbody tr:hover{background:#FAFCFA;}
             <select class="chip-filter" id="coCategoria" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas categorias</option></select>
           </div>
 
-          <div class="grid-2" style="grid-template-columns:220px 1fr; margin-bottom:18px;">
+          <div class="grid-2 co-top" style="margin-bottom:18px;">
             <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
               <div id="coStatusRing" style="position:relative; width:120px; height:120px;"></div>
               <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-mute); font-weight:700; margin-top:10px;">Status da operação</div>
@@ -460,18 +476,18 @@ tbody tr:hover{background:#FAFCFA;}
 
           <div class="grid-2" style="margin-bottom:18px;">
             <div class="card">
-              <div class="card-head"><div class="card-title">Consumo de produtos</div></div>
+              <div class="card-head"><div class="card-title">Consumo de produtos (litros e kg)</div></div>
               <canvas id="chartCoConsumo" height="160"></canvas>
             </div>
             <div class="card">
-              <div class="card-head"><div class="card-title">Consumo por cultivar</div></div>
+              <div class="card-head"><div class="card-title">Sementes tratadas por cultivar (kg)</div></div>
               <canvas id="chartCoCultivar" height="160"></canvas>
             </div>
           </div>
 
           <div class="card" style="margin-bottom:18px;">
             <div class="card-head"><div class="card-title">Estoque em tempo real</div></div>
-            <div id="coEstoqueTabela"></div>
+            <div id="coEstoqueTabela" style="overflow-x:auto;"></div>
           </div>
 
           <div class="card" style="margin-bottom:18px;">
@@ -482,7 +498,7 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="grid-2" style="margin-bottom:18px;">
             <div class="card">
               <div class="card-head"><div class="card-title">Últimas movimentações</div></div>
-              <div id="coMovimentacoes" style="max-height:360px; overflow-y:auto;"></div>
+              <div id="coMovimentacoes" style="max-height:360px; overflow:auto;"></div>
             </div>
             <div class="card">
               <div class="card-head"><div class="card-title">Receitas mais utilizadas</div></div>
@@ -501,11 +517,11 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="kpi-grid" id="kpiGrid"></div>
           <div class="grid-2">
             <div class="card">
-              <div class="card-head"><div class="card-title">Consumo mensal (kg / L)</div></div>
+              <div class="card-head"><div class="card-title">Consumo mensal (litros e kg)</div></div>
               <canvas id="chartConsumo" height="140"></canvas>
             </div>
             <div class="card">
-              <div class="card-head"><div class="card-title">Estoque por categoria</div></div>
+              <div class="card-head"><div class="card-title">Produtos por categoria</div></div>
               <canvas id="chartCategoria" height="140"></canvas>
             </div>
           </div>
@@ -566,6 +582,7 @@ tbody tr:hover{background:#FAFCFA;}
         <section class="section" id="section-receitas">
           <div class="toolbar">
             <div class="grow"></div>
+            <button class="btn btn-ghost" id="btnImportReceitas">Importar receitas da safra</button>
             <button class="btn btn-primary" id="btnNovaReceita">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Nova receita
@@ -704,12 +721,22 @@ tbody tr:hover{background:#FAFCFA;}
 </div>
 
 <!-- ============ MODAL: RECEITA ============ -->
+<div class="modal-overlay" id="modalImportReceitas">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title">Importar receitas — Soja 2025/2026</div><button class="modal-close" onclick="closeModal('modalImportReceitas')">✕</button></div>
+    <div class="modal-body" id="importReceitasBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalImportReceitas')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmImport">Importar agora</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalReceita">
   <div class="modal modal-lg">
     <div class="modal-head"><div class="modal-title">Nova receita</div><button class="modal-close" onclick="closeModal('modalReceita')">✕</button></div>
     <div class="modal-body">
       <div class="field"><label>Nome da receita</label><input id="rNome" placeholder="Ex: Padrão Soja Premium"></div>
-      <div class="field full" style="margin-top:14px;"><label>Produtos e dose (mL por kg de sementes)</label>
+      <div class="field full" style="margin-top:14px;"><label>Produtos e dose por kg de sementes (mL/kg; pó secante em g/kg)</label>
         <div id="recipeItemsWrap"></div>
         <button class="btn btn-ghost btn-sm" id="btnAddRecipeItem" style="margin-top:6px;">+ Adicionar produto</button>
       </div>
@@ -827,17 +854,38 @@ const MOTIVOS_SAIDA = ['Consumo em tratamento de sementes','Perdas','Ajustes','E
    UTIL
 ========================================================= */
 function fmtMoney(v){ return (v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}); }
+/* Datas "YYYY-MM-DD" (campos de data) são lidas como data LOCAL.
+   new Date("2026-10-14") seria meia-noite UTC e apareceria como dia 13 no Brasil. */
+function fmtNum(n){
+  const v = Number(n);
+  if(!isFinite(v)) return n==null?'':String(n);
+  return v.toLocaleString('pt-BR', {maximumFractionDigits:3});
+}
+function parseLocalDate(v){
+  if(!v) return null;
+  if(v.toDate) return v.toDate();
+  if(v instanceof Date) return new Date(v.getTime());
+  if(typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v)){
+    const [y,m,d] = v.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+  return new Date(v);
+}
 function fmtDate(d){
   if(!d) return '—';
-  const dt = d.toDate ? d.toDate() : new Date(d);
-  return dt.toLocaleDateString('pt-BR');
+  return parseLocalDate(d).toLocaleDateString('pt-BR');
 }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function toISOLocal(dt){
+  const y = dt.getFullYear(), m = String(dt.getMonth()+1).padStart(2,'0'), d = String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function todayISO(){ return toISOLocal(new Date()); }
 function daysUntil(dateVal){
   if(!dateVal) return null;
-  const dt = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
-  const diff = Math.ceil((dt.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
-  return diff;
+  const dt = parseLocalDate(dateVal);
+  dt.setHours(0,0,0,0);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  return Math.round((dt - hoje) / 86400000);
 }
 function uid(){ return 'id_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
 function toast(msg, isErr){
@@ -1000,6 +1048,80 @@ function initListeners(){
 /* =========================================================
    DASHBOARD
 ========================================================= */
+/* Lista única de alertas (só o que dá para comprovar com dado real).
+   Usada pelo Centro de Operações e pelo contador do sino/menu. */
+function getAlertasInteligentes(){
+  const alertas = [];
+  produtos.forEach(p=>{
+    const d = daysUntil(p.validade);
+    if(d!==null && d<0) alertas.push({sev:'critico', texto:`${p.nome} está vencido`, nav:'produtos'});
+    else if(d!==null && d<=30) alertas.push({sev:'atencao', texto:`${p.nome} vence em ${d} dia(s)`, nav:'produtos'});
+  });
+  produtos.forEach(p=>{
+    if(Number(p.quantidade) <= Number(p.estoqueMinimo||0))
+      alertas.push({sev:'atencao', texto:`${p.nome} abaixo do estoque mínimo (${fmtNum(p.quantidade)} ${p.unidade})`, nav:'produtos'});
+  });
+  receitas.forEach(r=>{
+    (r.itens||[]).forEach(i=>{
+      const temEstoque = candidatosParaItem(i).some(c=>Number(c.quantidade)>0);
+      if(!temEstoque) alertas.push({sev:'critico', texto:`Receita "${r.nome}" sem nenhum produto em estoque para ${i.produtoNome}`, nav:'receitas'});
+    });
+  });
+  const LIMITE_DIAS_PARADO = 60;
+  produtos.forEach(p=>{
+    const movsProduto = movimentacoes.filter(m=>m.produtoId===p.id && m.data);
+    if(!movsProduto.length) return;
+    const ultima = movsProduto.reduce((max,m)=> m.data>max?m.data:max, movsProduto[0].data);
+    const dias = Math.floor((new Date() - parseLocalDate(ultima))/86400000);
+    if(dias>LIMITE_DIAS_PARADO) alertas.push({sev:'atencao', texto:`${p.nome} sem movimentação há ${dias} dias`, nav:'movimentacoes'});
+  });
+  return alertas;
+}
+function updateAlertBadges(){
+  const n = getAlertasInteligentes().length;
+  const nav = document.getElementById('navAlertBadge'), dot = document.getElementById('topAlertDot');
+  if(!nav || !dot) return;
+  nav.style.display = n ? 'inline-flex' : 'none'; nav.textContent = n;
+  dot.style.display = n ? 'flex' : 'none'; dot.textContent = n;
+}
+/* ---- Consumo: litros e quilos NUNCA são somados entre si ---- */
+function toLitrosKg(qtd, unidade){
+  const q = Number(qtd)||0;
+  if(unidade==='kg') return {l:0, kg:q};
+  if(unidade==='mL') return {l:q/1000, kg:0};
+  if(unidade==='L')  return {l:q, kg:0};
+  return {l:0, kg:0};
+}
+function movLitrosKg(m){
+  const prod = produtos.find(p=>p.id===m.produtoId);
+  return toLitrosKg(m.quantidade, prod ? prod.unidade : null);
+}
+function somaLitrosKg(movs){
+  return movs.reduce((acc,m)=>{ const x = movLitrosKg(m); acc.l+=x.l; acc.kg+=x.kg; return acc; }, {l:0, kg:0});
+}
+function fmtLitrosKg(l, kg){
+  const parts = [];
+  if(l || !kg) parts.push(fmtNum(+l.toFixed(2))+' L');
+  if(kg) parts.push(fmtNum(+kg.toFixed(2))+' kg');
+  return parts.join(' · ');
+}
+function consumoChartConfig(labels, litros, kg, maxBar){
+  return {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Litros (L)', data:litros, backgroundColor:'#2E7D4F', borderRadius:6, maxBarThickness:maxBar, yAxisID:'y' },
+      { label:'Quilos (kg)', data:kg, backgroundColor:'#E2A93B', borderRadius:6, maxBarThickness:maxBar, yAxisID:'y1' }
+    ]},
+    options:{
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:11} } } },
+      scales:{
+        y:{ position:'left', title:{display:true, text:'Litros'}, grid:{color:'#EEF1EF'} },
+        y1:{ position:'right', title:{display:true, text:'kg'}, grid:{drawOnChartArea:false} },
+        x:{ grid:{display:false} }
+      }
+    }
+  };
+}
 function ringSvg(pct, color){
   const r = 21, c = 2*Math.PI*r;
   const offset = c - (Math.min(pct,100)/100)*c;
@@ -1011,18 +1133,18 @@ function renderDashboard(){
   const venc30 = produtos.filter(p=> { const d = daysUntil(p.validade); return d !== null && d >= 0 && d <= 30; });
   const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
   const hoje = new Date();
-  const consumoMes = movimentacoes.filter(m=>{
+  const consumoMes = somaLitrosKg(movimentacoes.filter(m=>{
     if(m.tipo !== 'saida' || !m.data) return false;
-    const d = new Date(m.data);
+    const d = parseLocalDate(m.data);
     return d.getMonth()===hoje.getMonth() && d.getFullYear()===hoje.getFullYear();
-  }).reduce((s,m)=> s + (Number(m.quantidade)||0), 0);
+  }));
 
   const cards = [
     {label:'Produtos cadastrados', value: qtdProdutos, icon:'box', color:'var(--green)', pct:100},
     {label:'Vence em 30 dias', value: venc30.length, icon:'clock', color:'var(--warn)', pct: qtdProdutos?Math.round(venc30.length/qtdProdutos*100):0, cls: venc30.length?'warn':''},
     {label:'Produtos vencidos', value: vencidos.length, icon:'alert', color:'var(--danger)', pct: qtdProdutos?Math.round(vencidos.length/qtdProdutos*100):0, cls: vencidos.length?'danger':''},
     {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--danger)', pct: qtdProdutos?Math.round(baixoMin.length/qtdProdutos*100):0, cls: baixoMin.length?'danger':''},
-    {label:'Consumo no mês', value: consumoMes.toLocaleString('pt-BR'), icon:'consumo', color:'var(--green)', pct:100},
+    {label:'Consumo no mês', value: fmtLitrosKg(consumoMes.l, consumoMes.kg), icon:'consumo', color:'var(--green)', pct:100},
   ];
   const icons = {
     money:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
@@ -1038,29 +1160,22 @@ function renderDashboard(){
       <div class="kpi-body"><div class="kpi-label">${c.label}</div><div class="kpi-value ${c.cls||''}">${c.value}</div></div>
     </div>`).join('');
 
-  document.getElementById('navAlertBadge').style.display = (vencidos.length+venc30.length+baixoMin.length) ? 'inline-flex' : 'none';
-  document.getElementById('navAlertBadge').textContent = vencidos.length+venc30.length+baixoMin.length;
-  document.getElementById('topAlertDot').style.display = (vencidos.length+venc30.length+baixoMin.length) ? 'flex' : 'none';
-  document.getElementById('topAlertDot').textContent = vencidos.length+venc30.length+baixoMin.length;
+  updateAlertBadges();
 
   // consumo mensal últimos 6 meses
   const months = [];
   for(let i=5;i>=0;i--){ const d = new Date(); d.setMonth(d.getMonth()-i); months.push({label:d.toLocaleDateString('pt-BR',{month:'short'}), m:d.getMonth(), y:d.getFullYear()}); }
-  const consumoData = months.map(mo => movimentacoes.filter(m=>{
+  const movsPorMes = months.map(mo => somaLitrosKg(movimentacoes.filter(m=>{
     if(m.tipo!=='saida' || !m.data) return false;
-    const d = new Date(m.data);
+    const d = parseLocalDate(m.data);
     return d.getMonth()===mo.m && d.getFullYear()===mo.y;
-  }).reduce((s,m)=>s+(Number(m.quantidade)||0),0));
-
+  })));
   if(chartConsumo) chartConsumo.destroy();
-  chartConsumo = new Chart(document.getElementById('chartConsumo'), {
-    type:'bar',
-    data:{ labels: months.map(m=>m.label), datasets:[{ data: consumoData, backgroundColor:'#2E7D4F', borderRadius:6, maxBarThickness:36 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ y:{ grid:{color:'#EEF1EF'} }, x:{ grid:{display:false} } } }
-  });
+  chartConsumo = new Chart(document.getElementById('chartConsumo'),
+    consumoChartConfig(months.map(m=>m.label), movsPorMes.map(x=>+x.l.toFixed(2)), movsPorMes.map(x=>+x.kg.toFixed(2)), 36));
 
   const catMap = {};
-  produtos.forEach(p=>{ catMap[p.categoria || 'Outro'] = (catMap[p.categoria || 'Outro']||0) + (Number(p.quantidade)||0); });
+  produtos.forEach(p=>{ catMap[p.categoria || 'Outro'] = (catMap[p.categoria || 'Outro']||0) + 1; });
   if(chartCategoria) chartCategoria.destroy();
   chartCategoria = new Chart(document.getElementById('chartCategoria'), {
     type:'doughnut',
@@ -1070,11 +1185,11 @@ function renderDashboard(){
 
   const recent = movimentacoes.slice(0,6);
   document.getElementById('dashRecentMov').innerHTML = recent.length ? recent.map(m=>`
-    <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #F0F2F1;">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:10px 0; border-bottom:1px solid #F0F2F1;">
       <span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span>
       <span style="font-weight:600; font-size:13.5px;">${esc(m.produtoNome)}</span>
       <span style="color:var(--text-mute); font-size:12.5px;">${esc(m.motivo)}</span>
-      <span style="margin-left:auto; font-weight:700; font-size:13px;">${m.quantidade}</span>
+      <span style="margin-left:auto; font-weight:700; font-size:13px;">${fmtNum(m.quantidade)}</span>
       <span style="color:var(--text-mute); font-size:12px; min-width:80px; text-align:right;">${fmtDate(m.data)}</span>
     </div>`).join('') : '<div class="empty-state"><p>Sem movimentações recentes.</p></div>';
 }
@@ -1104,7 +1219,7 @@ function periodoRange(periodo){
 }
 function dataDentroPeriodo(dataStr, range){
   if(!dataStr) return false;
-  const d = new Date(dataStr+'T12:00:00');
+  const d = parseLocalDate(dataStr);
   return d >= range.start && d <= range.end;
 }
 function populateCoFiltros(){
@@ -1148,6 +1263,7 @@ function movsFiltradas(){
   });
 }
 function renderCentroOperacoes(){
+  updateAlertBadges();
   if(!document.getElementById('coKpiGrid') || !produtos) return;
   populateCoFiltros();
   const lotesF = lotesFiltrados();
@@ -1201,26 +1317,8 @@ function renderCentroOperacoes(){
       <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div></div>
     </div>`).join('');
 
-  // Alertas inteligentes (só o que dá pra comprovar com dado real)
-  const alertas = [];
-  vencidos.forEach(p=> alertas.push({sev:'critico', texto:`${p.nome} está vencido`, nav:'produtos'}));
-  venc30.forEach(p=> alertas.push({sev:'atencao', texto:`${p.nome} vence em ${daysUntil(p.validade)} dia(s)`, nav:'produtos'}));
-  baixoMin.forEach(p=> alertas.push({sev:'atencao', texto:`${p.nome} abaixo do estoque mínimo (${p.quantidade} ${p.unidade})`, nav:'produtos'}));
-  receitas.forEach(r=>{
-    (r.itens||[]).forEach(i=>{
-      const candidatos = candidatosParaItem(i);
-      const temEstoque = candidatos.some(c=>Number(c.quantidade)>0);
-      if(!temEstoque) alertas.push({sev:'critico', texto:`Receita "${r.nome}" sem nenhum produto em estoque para ${i.produtoNome}`, nav:'receitas'});
-    });
-  });
-  const LIMITE_DIAS_PARADO = 60;
-  produtos.forEach(p=>{
-    const movsProduto = movimentacoes.filter(m=>m.produtoId===p.id && m.data);
-    if(!movsProduto.length) return;
-    const ultima = movsProduto.reduce((max,m)=> m.data>max?m.data:max, movsProduto[0].data);
-    const dias = Math.floor((new Date() - new Date(ultima+'T00:00:00'))/86400000);
-    if(dias>LIMITE_DIAS_PARADO) alertas.push({sev:'atencao', texto:`${p.nome} sem movimentação há ${dias} dias`, nav:'movimentacoes'});
-  });
+  // Alertas inteligentes — mesma lista que alimenta o sino do topo
+  const alertas = getAlertasInteligentes();
   document.getElementById('coAlertas').innerHTML = alertas.length ? alertas.slice(0,30).map(a=>`
     <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
       <span class="badge ${a.sev==='critico'?'badge-danger':'badge-warn'}">${a.sev==='critico'?'Crítico':'Atenção'}</span>
@@ -1232,7 +1330,7 @@ function renderCentroOperacoes(){
   document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
     <div style="padding:10px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
       <div style="display:flex; justify-content:space-between;"><b>${esc(l.cultivar)}</b><span style="color:var(--text-mute); font-size:12px;">${l.criadoEm ? new Date(l.criadoEm.seconds*1000).toLocaleString('pt-BR') : fmtDate(l.data)}</span></div>
-      <div style="color:var(--text-soft); font-size:12.5px;">Lote ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${l.quantidadeSementes} kg</div>
+      <div style="color:var(--text-soft); font-size:12.5px;">Lote ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg</div>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum lote tratado nesse período.</p>';
 
   // Consumo de produtos (por dia, dentro do período filtrado)
@@ -1240,15 +1338,12 @@ function renderCentroOperacoes(){
   const dias = [];
   { let cursor = new Date(range.start); while(cursor <= range.end){ dias.push(new Date(cursor)); cursor.setDate(cursor.getDate()+1); } }
   const consumoPorDia = dias.map(d=>{
-    const diaStr = d.toISOString().slice(0,10);
-    return movsF.filter(m=>m.tipo==='saida' && m.data===diaStr).reduce((s,m)=>s+(Number(m.quantidade)||0),0);
+    const diaStr = toISOLocal(d);
+    return somaLitrosKg(movsF.filter(m=>m.tipo==='saida' && m.data===diaStr));
   });
   if(chartCoConsumo) chartCoConsumo.destroy();
-  chartCoConsumo = new Chart(document.getElementById('chartCoConsumo'), {
-    type:'bar',
-    data:{ labels: dias.map(d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), datasets:[{ data:consumoPorDia, backgroundColor:'#2E7D4F', borderRadius:6, maxBarThickness:28 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ y:{grid:{color:'#EEF1EF'}}, x:{grid:{display:false}} } }
-  });
+  chartCoConsumo = new Chart(document.getElementById('chartCoConsumo'),
+    consumoChartConfig(dias.map(d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), consumoPorDia.map(x=>+x.l.toFixed(2)), consumoPorDia.map(x=>+x.kg.toFixed(2)), 28));
 
   // Consumo por cultivar (kg de sementes tratadas)
   const porCultivar = {};
@@ -1269,11 +1364,12 @@ function renderCentroOperacoes(){
       const d = daysUntil(p.validade);
       const pct = p.estoqueMinimo ? Math.min(100, Math.round((p.quantidade/(p.estoqueMinimo*2))*100)) : 100;
       let cls='badge-ok', label='Normal', barCor='var(--green)';
-      if(Number(p.quantidade)<=Number(p.estoqueMinimo||0) || (d!==null && d<0)){ cls='badge-danger'; label='Crítico'; barCor='var(--danger)'; }
-      else if(d!==null && d<=30){ cls='badge-warn'; label='Atenção'; barCor='var(--warn)'; }
+      if(d!==null && d<0){ cls='badge-danger'; label='Vencido'; barCor='var(--danger)'; }
+      else if(d!==null && d<=30){ cls='badge-warn'; label='Vence em breve'; barCor='var(--warn)'; }
+      else if(Number(p.quantidade)<=Number(p.estoqueMinimo||0)){ cls='badge-warn'; label='Estoque baixo'; barCor='var(--danger)'; }
       return `<tr>
         <td><b>${esc(p.nome)}</b></td><td>${esc(p.categoria||'—')}</td><td>${esc(p.lote||'—')}</td>
-        <td>${p.quantidade} ${esc(p.unidade)}<div class="progress-bar" style="width:90px;"><div class="progress-fill" style="width:${pct}%; background:${barCor};"></div></div></td>
+        <td>${fmtNum(p.quantidade)} ${esc(p.unidade)}<div class="progress-bar" style="width:90px;"><div class="progress-fill" style="width:${pct}%; background:${barCor};"></div></div></td>
         <td><span class="badge ${cls}">${label}</span></td>
         <td>${d===null?'—':(d<0?'Vencido':d+' dias')}</td>
       </tr>`;
@@ -1285,7 +1381,7 @@ function renderCentroOperacoes(){
       <div class="kpi-body" style="width:100%;">
         <div class="kpi-label">${esc(p.nome)}</div>
         <div class="kpi-value warn" style="font-size:18px;">${daysUntil(p.validade)} dias</div>
-        <div class="kpi-sub">Lote ${esc(p.lote||'—')} · ${p.quantidade} ${esc(p.unidade)} · ${esc(p.local||'sem local')}</div>
+        <div class="kpi-sub">Lote ${esc(p.lote||'—')} · ${fmtNum(p.quantidade)} ${esc(p.unidade)} · ${esc(p.local||'sem local')}</div>
         <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="verProdutoNoCentro('${p.id}')">Ver produto</button>
       </div>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum produto vencendo nos próximos 30 dias.</p>';
@@ -1293,7 +1389,7 @@ function renderCentroOperacoes(){
   // Últimas movimentações (até 20, respeitando filtros)
   const ultimasMovs = movsF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).slice(0,20);
   document.getElementById('coMovimentacoes').innerHTML = ultimasMovs.length ? `<table><thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Responsável</th></tr></thead><tbody>${ultimasMovs.map(m=>`
-    <tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td><td>${m.quantidade}</td><td>${esc(m.responsavel||'—')}</td></tr>`).join('')}</tbody></table>` : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma movimentação no período.</p>';
+    <tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td><td>${fmtNum(m.quantidade)}</td><td>${esc(m.responsavel||'—')}</td></tr>`).join('')}</tbody></table>` : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma movimentação no período.</p>';
 
   // Ranking de receitas mais utilizadas
   const usoReceitas = {};
@@ -1314,9 +1410,9 @@ function renderCentroOperacoes(){
   const eventos = [];
   movsF.forEach(m=>{
     const produto = produtos.find(p=>p.id===m.produtoId);
-    eventos.push({ ts: m.criadoEm ? m.criadoEm.seconds*1000 : new Date(m.data).getTime(), texto: `${m.tipo==='entrada'?'Entrada':'Saída'} de ${m.produtoNome} — ${m.quantidade} ${produto?produto.unidade:''} (${m.motivo})` });
+    eventos.push({ ts: m.criadoEm ? m.criadoEm.seconds*1000 : parseLocalDate(m.data).getTime(), texto: `${m.tipo==='entrada'?'Entrada':'Saída'} de ${m.produtoNome} — ${fmtNum(m.quantidade)} ${produto?produto.unidade:''} (${m.motivo})` });
   });
-  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : new Date(l.data).getTime(), texto: `Lote ${l.numeroLote} tratado — ${l.cultivar} (${l.receitaNome})` }));
+  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : parseLocalDate(l.data).getTime(), texto: `Lote ${l.numeroLote} tratado — ${l.cultivar} (${l.receitaNome})` }));
   eventos.sort((a,b)=>b.ts-a.ts);
   document.getElementById('coTimeline').innerHTML = eventos.length ? eventos.slice(0,50).map(e=>`
     <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
@@ -1404,8 +1500,8 @@ function renderProdutos(){
       <td>${esc(p.categoria||'—')}</td>
       <td>${esc(p.lote||'—')}</td>
       <td>${p.validade ? fmtDate(p.validade) : '—'}</td>
-      <td><b>${p.quantidade} ${esc(p.unidade)}</b></td>
-      <td>${p.estoqueMinimo} ${esc(p.unidade)}</td>
+      <td><b>${fmtNum(p.quantidade)} ${esc(p.unidade)}</b></td>
+      <td>${fmtNum(p.estoqueMinimo)} ${esc(p.unidade)}</td>
       <td><span class="badge ${st.cls}">${st.label}</span></td>
       <td><div class="tbl-actions">
         <button onclick='editProduto(${JSON.stringify(p.id)})' title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
@@ -1430,7 +1526,7 @@ document.querySelectorAll('.chip-filter[data-filter-cat]').forEach(el=>{
 document.getElementById('globalSearch').addEventListener('input', ()=>{ renderProdutos(); });
 
 function fillProdutoSelects(){
-  const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${p.quantidade} ${esc(p.unidade)})</option>`).join('');
+  const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${fmtNum(p.quantidade)} ${esc(p.unidade)})</option>`).join('');
   document.getElementById('mProduto').innerHTML = opts || '<option value="">Nenhum produto cadastrado</option>';
 }
 
@@ -1491,8 +1587,8 @@ function renderMovimentacoes(){
       <td><b>${esc(m.produtoNome)}</b></td>
       <td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td>
       <td>${esc(m.motivo)}</td>
-      <td><b>${m.quantidade}</b></td>
-      <td>${m.saldoApos}</td>
+      <td><b>${fmtNum(m.quantidade)}</b></td>
+      <td>${fmtNum(m.saldoApos)}</td>
       <td>${esc(m.responsavel||'—')}</td>
     </tr>`).join('');
 }
@@ -1532,14 +1628,29 @@ function duplicarReceita(id){
   openModal('modalReceita');
 }
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
-function deriveDoseMlPorKg(item){
+/* ---- Dose da receita ----
+   Produto em kg (pó secante) -> dose em g por kg de semente.
+   Produto em L ou mL        -> dose em mL por kg de semente. */
+function doseBaseUnit(unidade){ return unidade==='kg' ? 'g' : 'mL'; }
+function doseLabel(unidade){ return doseBaseUnit(unidade)+'/kg'; }
+function familiaUnidade(unidade){ return unidade==='kg' ? 'massa' : 'volume'; }
+function unidadeDoItem(item){
+  const prod = produtos.find(p=>p.id===item.produtoId);
+  return (prod && prod.unidade) || item.unidade || 'L';
+}
+function getDoseItem(item){
   if(!item) return '';
   if(item.dosePorKg != null) return item.dosePorKg;
   // compatibilidade com receitas antigas (base 100kg, com unidade própria)
-  const doseUnidade = item.doseUnidade || item.unidade || 'mL';
+  const base = doseBaseUnit(unidadeDoItem(item));
+  const doseUnidade = item.doseUnidade || base;
   const valorPorKg = (item.dosePor100kg||0) / 100;
-  const fator = convFactor(doseUnidade, 'mL');
-  return +(valorPorKg * fator).toFixed(4);
+  return +(valorPorKg * convFactor(doseUnidade, base)).toFixed(4);
+}
+/* Consumo (na unidade de ESTOQUE do produto) para kgSementes de semente */
+function consumoDoItem(item, produto, kgSementes){
+  const unidade = produto ? produto.unidade : unidadeDoItem(item);
+  return +(getDoseItem(item) * kgSementes * convFactor(doseBaseUnit(unidade), unidade)).toFixed(4);
 }
 function addRecipeItemRow(existing){
   const row = document.createElement('div');
@@ -1547,16 +1658,25 @@ function addRecipeItemRow(existing){
   const opts = produtos.map(p=>`<option value="${p.id}" data-unidade="${p.unidade}">${esc(p.nome)}</option>`).join('');
   row.innerHTML = `
     <select class="ri-produto">${opts || '<option value="">Cadastre um produto primeiro</option>'}</select>
-    <input class="ri-dose" type="number" step="0.001" placeholder="Dose (mL/kg)">
-    <span style="font-size:12.5px; color:var(--text-mute); flex-shrink:0;">mL/kg</span>
+    <input class="ri-dose" type="number" step="0.001" placeholder="Dose">
+    <span class="ri-un" style="font-size:12.5px; color:var(--text-mute); flex-shrink:0; min-width:38px;">mL/kg</span>
     <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">✕</button>`;
   document.getElementById('recipeItemsWrap').appendChild(row);
   const selProduto = row.querySelector('.ri-produto');
   const doseInput = row.querySelector('.ri-dose');
+  const unSpan = row.querySelector('.ri-un');
+  function atualizaUnidadeDose(){
+    const prod = produtos.find(p=>p.id===selProduto.value);
+    const label = doseLabel(prod ? prod.unidade : 'L');
+    unSpan.textContent = label;
+    doseInput.placeholder = 'Dose ('+label+')';
+  }
+  selProduto.addEventListener('change', atualizaUnidadeDose);
   if(existing){
     selProduto.value = existing.produtoId;
-    doseInput.value = deriveDoseMlPorKg(existing);
+    doseInput.value = getDoseItem(existing);
   }
+  atualizaUnidadeDose();
 }
 function convFactor(from, to){
   if(from===to) return 1;
@@ -1606,11 +1726,11 @@ function renderReceitas(){
       </div>
       ${r.itens.map(i=>`<div style="padding:5px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
         <div style="display:flex; justify-content:space-between;">
-          <span>${esc(i.produtoNome)}</span><b>${i.dosePorKg != null ? i.dosePorKg : deriveDoseMlPorKg(i)} mL/kg</b>
+          <span>${esc(i.produtoNome)}</span><b>${fmtNum(getDoseItem(i))} ${doseLabel(unidadeDoItem(i))}</b>
         </div>
-        ${i.ingredienteAtivo ? `<div style="font-size:11px; color:var(--text-mute);">Substitui por: qualquer produto com "${esc(i.ingredienteAtivo)}"</div>` : `<div style="font-size:11px; color:var(--warn);">Sem ingrediente ativo — sem substituição automática</div>`}
+        ${i.ingredienteAtivo ? `<div style="font-size:11px; color:var(--text-mute);">Aceita outro produto com o mesmo ingrediente ativo (${esc(i.ingredienteAtivo)})</div>` : `<div style="font-size:11px; color:var(--warn-text);">Sem ingrediente ativo — sem substituição automática</div>`}
       </div>`).join('')}
-      ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn); margin-top:8px;">⚠ Receita antiga (base 100kg) — valor acima é uma conversão automática, confira e salve novamente.</p>' : ''}
+      ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn-text); margin-top:8px;">⚠ Receita antiga — a dose foi convertida automaticamente. Confira e salve novamente.</p>' : ''}
       ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
     </div>`).join('');
 }
@@ -1618,6 +1738,91 @@ function delReceita(id){
   if(!confirm('Excluir esta receita?')) return;
   db.collection('receitas').doc(id).delete().then(()=>toast('Receita excluída'));
 }
+/* ---- Importação das receitas da safra (Soja 2025/2026) ---- */
+const IMPORT_PRODUTOS = {
+  'LUMITREO':{un:'L',cat:'Outro'}, 'LAUNCHER':{un:'L',cat:'Outro'}, 'L-270':{un:'L',cat:'Outro'},
+  'F028':{un:'kg',cat:'Outro'}, 'APRON':{un:'L',cat:'Fungicida'}, 'TERRA FORTE FIPRONIL':{un:'L',cat:'Inseticida'},
+  'FIPRONIL NORTOX MAX':{un:'L',cat:'Inseticida'}, 'DERMACOR':{un:'L',cat:'Inseticida'}, 'LUMIALZA':{un:'L',cat:'Outro'},
+  'BIOFIX PREMIUM':{un:'L',cat:'Inoculante'}, 'PROTETOR PREMIUM':{un:'L',cat:'Polímero / Corante'},
+  'REDIGO':{un:'L',cat:'Fungicida'}, 'FLINT 500 WG':{un:'kg',cat:'Fungicida'}, 'GAUCHO':{un:'L',cat:'Inseticida'},
+  'TMSP POWER':{un:'L',cat:'Outro'}, 'ENDOFUSE':{un:'L',cat:'Outro'}, 'DISCO RED L-1135':{un:'L',cat:'Polímero / Corante'},
+  'ACRESCENT RAIZ F PLUS':{un:'L',cat:'Outro'}
+};
+const IMPORT_RECEITAS = [
+  ['A+APRON',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['APRON',1],['TERRA FORTE FIPRONIL',1]]],
+  ['A+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['FIPRONIL NORTOX MAX',1]]],
+  ['TSI B',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
+  ['TSI B+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5]]],
+  ['TSI B+L+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7]]],
+  ['TSI B+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
+  ['BAYER',[['REDIGO',0.3],['FLINT 500 WG',0.2],['GAUCHO',1.5],['LAUNCHER',0.8],['FIPRONIL NORTOX MAX',0.5]]],
+  ['TSI C',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5]]],
+  ['TSI C+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2]]],
+  ['COASA',[['LUMITREO',0.3],['L-270',1.5],['F028',1.5],['TMSP POWER',2.5],['FIPRONIL NORTOX MAX',1]]],
+  ['TREVO',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',2],['ACRESCENT RAIZ F PLUS',1]]],
+  ['TREVO+LV',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',2],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7],['ACRESCENT RAIZ F PLUS',1]]]
+];
+function normNome(n){ return (n||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9+]/g,''); }
+function planoImportacao(){
+  const prodExist = {}; produtos.forEach(p=>{ prodExist[normNome(p.nome)] = p; });
+  const recExist = new Set(receitas.map(r=>normNome(r.nome)));
+  const novosProdutos = Object.keys(IMPORT_PRODUTOS).filter(n=>!prodExist[normNome(n)]);
+  const avisos = [];
+  Object.keys(IMPORT_PRODUTOS).forEach(n=>{
+    const ex = prodExist[normNome(n)];
+    if(ex && familiaUnidade(ex.unidade) !== familiaUnidade(IMPORT_PRODUTOS[n].un)){
+      avisos.push(n+': no seu cadastro está em '+ex.unidade+', mas a receita usa '+(IMPORT_PRODUTOS[n].un==='kg'?'g/kg':'mL/kg')+'. Confira a unidade do produto.');
+    }
+  });
+  const novasReceitas = IMPORT_RECEITAS.filter(r=>!recExist.has(normNome(r[0])));
+  const puladas = IMPORT_RECEITAS.filter(r=>recExist.has(normNome(r[0]))).map(r=>r[0]);
+  return {prodExist, novosProdutos, novasReceitas, puladas, avisos};
+}
+document.getElementById('btnImportReceitas').addEventListener('click', ()=>{
+  const pl = planoImportacao();
+  document.getElementById('importReceitasBody').innerHTML = `
+    <p style="font-size:13.5px; margin-bottom:10px;">Receitas novas a cadastrar: <b>${pl.novasReceitas.length}</b> de ${IMPORT_RECEITAS.length}</p>
+    ${pl.novasReceitas.length ? `<p style="font-size:12.5px; color:var(--text-soft); margin-bottom:10px;">${pl.novasReceitas.map(r=>esc(r[0])).join(' · ')}</p>`:''}
+    ${pl.puladas.length ? `<p style="font-size:12.5px; color:var(--warn-text); margin-bottom:10px;">Já existem e serão puladas: ${pl.puladas.map(esc).join(', ')}</p>`:''}
+    <p style="font-size:13.5px; margin-bottom:6px;">Produtos que ainda não existem e serão criados com estoque zero: <b>${pl.novosProdutos.length}</b></p>
+    ${pl.novosProdutos.length ? `<p style="font-size:12.5px; color:var(--text-soft); margin-bottom:10px;">${pl.novosProdutos.map(n=>esc(n)+' ('+IMPORT_PRODUTOS[n].un+')').join(' · ')}</p>`:''}
+    ${pl.avisos.length ? `<div style="background:var(--warn-bg,#FFF6E0); padding:10px 12px; border-radius:8px; font-size:12.5px; color:var(--warn-text);">${pl.avisos.map(esc).join('<br>')}</div>`:''}
+    <p style="font-size:12px; color:var(--text-mute); margin-top:12px;">Doses: mL/kg para líquidos e g/kg para F028 e FLINT 500 WG. Depois de importar, preencha quantidade, validade e ingrediente ativo dos produtos novos.</p>`;
+  document.getElementById('btnConfirmImport').disabled = !pl.novasReceitas.length;
+  openModal('modalImportReceitas');
+});
+document.getElementById('btnConfirmImport').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btnConfirmImport');
+  const pl = planoImportacao();
+  if(!pl.novasReceitas.length) return;
+  btn.disabled = true; btn.textContent = 'Importando...';
+  try{
+    const batch = db.batch();
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    const mapa = {}; // nome normalizado -> {id, nome, unidade, ingredienteAtivo}
+    Object.keys(pl.prodExist).forEach(k=>{ const p=pl.prodExist[k]; mapa[k]={id:p.id,nome:p.nome,unidade:p.unidade,ingredienteAtivo:p.ingredienteAtivo||''}; });
+    // só cria produtos realmente usados pelas receitas novas
+    const usados = new Set(); pl.novasReceitas.forEach(r=>r[1].forEach(i=>usados.add(normNome(i[0]))));
+    pl.novosProdutos.filter(n=>usados.has(normNome(n))).forEach(n=>{
+      const ref = db.collection('produtos').doc();
+      const d = IMPORT_PRODUTOS[n];
+      batch.set(ref, {nome:n, categoria:d.cat, fabricante:'', ingredienteAtivo:'', lote:'', validade:'', unidade:d.un,
+        quantidade:0, estoqueMinimo:0, local:'', observacoes:'Criado na importação das receitas Soja 2025/2026', criadoEm:ts, atualizadoEm:ts});
+      mapa[normNome(n)] = {id:ref.id, nome:n, unidade:d.un, ingredienteAtivo:''};
+    });
+    pl.novasReceitas.forEach(r=>{
+      const itens = r[1].map(i=>{ const m = mapa[normNome(i[0])];
+        return {produtoId:m.id, produtoNome:m.nome, unidade:m.unidade, ingredienteAtivo:m.ingredienteAtivo, dosePorKg:i[1]}; });
+      batch.set(db.collection('receitas').doc(), {nome:r[0], itens, observacoes:'Soja — Safra 2025/2026', criadoEm:ts});
+    });
+    await batch.commit();
+    closeModal('modalImportReceitas');
+    toast(pl.novasReceitas.length+' receitas importadas');
+  }catch(e){
+    console.error(e); toast('Erro ao importar receitas', true);
+  }
+  btn.disabled = false; btn.textContent = 'Importar agora';
+});
 function fillReceitaSelect(){
   document.getElementById('lReceita').innerHTML = receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
 }
@@ -1650,8 +1855,10 @@ function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
 function candidatosParaItem(item){
   const ref = produtos.find(p=>p.id===item.produtoId);
   const ingrediente = normalizeTxt(item.ingredienteAtivo || (ref?ref.ingredienteAtivo:''));
+  // substituto precisa ser da mesma família (kg com kg; L/mL com L/mL), senão a dose (g/kg x mL/kg) não faz sentido
+  const familia = familiaUnidade(unidadeDoItem(item));
   let candidatos = ingrediente
-    ? produtos.filter(p=> normalizeTxt(p.ingredienteAtivo)===ingrediente)
+    ? produtos.filter(p=> normalizeTxt(p.ingredienteAtivo)===ingrediente && familiaUnidade(p.unidade)===familia)
     : (ref ? [ref] : []);
   if(!candidatos.length && ref) candidatos = [ref];
   return candidatos;
@@ -1663,18 +1870,14 @@ function calcularConsumoLote(){
   const anterior = loteItensAtuais;
   loteItensAtuais = receita.itens.map((i, idx)=>{
     const candidatos = candidatosParaItem(i);
-    const doseMlPorKg = deriveDoseMlPorKg(i);
     // mantém a seleção anterior se ela ainda for uma opção válida; senão prioriza quem tem estoque suficiente
     const selecaoAnterior = anterior[idx] && anterior[idx].receitaItemNome===i.produtoNome ? anterior[idx].selectedProdutoId : null;
     let selectedProdutoId = (selecaoAnterior && candidatos.some(c=>c.id===selecaoAnterior)) ? selecaoAnterior : null;
     if(!selectedProdutoId){
-      const comEstoque = candidatos.find(c=>{
-        const fator = convFactor('mL', c.unidade);
-        return Number(c.quantidade) >= doseMlPorKg*kg*fator;
-      });
+      const comEstoque = candidatos.find(c=> Number(c.quantidade) >= consumoDoItem(i, c, kg));
       selectedProdutoId = comEstoque ? comEstoque.id : (candidatos[0] ? candidatos[0].id : i.produtoId);
     }
-    return { receitaItemNome:i.produtoNome, doseMlPorKg, candidatos, selectedProdutoId };
+    return { receitaItem:i, receitaItemNome:i.produtoNome, candidatos, selectedProdutoId };
   });
   renderLotePreview();
   return getLoteConsumoFinal(kg);
@@ -1684,8 +1887,7 @@ function renderLotePreview(){
   document.getElementById('lotePreview').innerHTML = loteItensAtuais.map((item, idx)=>{
     const produto = produtos.find(p=>p.id===item.selectedProdutoId);
     const unidade = produto ? produto.unidade : '';
-    const fator = convFactor('mL', unidade);
-    const consumo = +(item.doseMlPorKg * kg * fator).toFixed(4);
+    const consumo = consumoDoItem(item.receitaItem, produto, kg);
     const disponivel = produto ? Number(produto.quantidade) : 0;
     const suficiente = disponivel >= consumo;
     const pct = disponivel ? Math.min(100, Math.round((consumo/disponivel)*100)) : 100;
@@ -1694,11 +1896,11 @@ function renderLotePreview(){
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px;">
         ${temAlternativas
           ? `<select style="flex:1; padding:5px 8px; border:1.5px solid var(--border); border-radius:7px; font-size:12.5px;" onchange="onLoteSubstitutoChange(${idx}, this.value)">
-              ${item.candidatos.map(c=>`<option value="${c.id}" ${c.id===item.selectedProdutoId?'selected':''}>${esc(c.nome)} (${c.quantidade} ${esc(c.unidade)} em estoque)</option>`).join('')}
+              ${item.candidatos.map(c=>`<option value="${c.id}" ${c.id===item.selectedProdutoId?'selected':''}>${esc(c.nome)} (${fmtNum(c.quantidade)} ${esc(c.unidade)} em estoque)</option>`).join('')}
             </select>`
           : `<span>${esc(produto ? produto.nome : item.receitaItemNome)}</span>`
         }
-        <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${consumo} ${esc(unidade)} ${suficiente?'':' — insuficiente!'}</b>
+        <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${fmtNum(consumo)} ${esc(unidade)} ${suficiente?'':' — insuficiente!'}</b>
       </div>
       ${temAlternativas ? '<div style="font-size:11px; color:var(--text-mute); margin-top:2px;">Mesmo ingrediente ativo — pode trocar o produto usado</div>' : ''}
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${suficiente?'var(--green)':'var(--danger)'}"></div></div>
@@ -1713,8 +1915,7 @@ function getLoteConsumoFinal(kg){
   return loteItensAtuais.map(item=>{
     const produto = produtos.find(p=>p.id===item.selectedProdutoId);
     const unidade = produto ? produto.unidade : '';
-    const fator = convFactor('mL', unidade);
-    const consumo = +(item.doseMlPorKg * kg * fator).toFixed(4);
+    const consumo = consumoDoItem(item.receitaItem, produto, kg);
     const disponivel = produto ? Number(produto.quantidade) : 0;
     return { produtoId: item.selectedProdutoId, produtoNome: produto?produto.nome:item.receitaItemNome, unidade, consumo, disponivel, suficiente: disponivel>=consumo };
   });
@@ -1763,7 +1964,7 @@ function renderLotes(){
   document.getElementById('tblLotes').innerHTML = lotes.map(l=>`
     <tr>
       <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
-      <td>${l.quantidadeSementes}</td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
+      <td>${fmtNum(l.quantidadeSementes)}</td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
       <td><div class="tbl-actions"><button onclick='verLote("${l.id}")' title="Ver consumo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
       </button></div></td>
@@ -1771,7 +1972,9 @@ function renderLotes(){
 }
 function verLote(id){
   const l = lotes.find(x=>x.id===id);
-  alert('Lote ' + l.numeroLote + ' (' + l.cultivar + ')\\n\\nConsumo:\\n' + l.itensConsumidos.map(i=>i.produtoNome+': '+i.quantidade+' '+i.unidade).join('\\n'));
+  if(!l) return;
+  const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
+  alert('Lote ' + l.numeroLote + ' (' + l.cultivar + ')\n\nConsumo:\n' + linhas.join('\n'));
 }
 
 /* =========================================================
@@ -1781,19 +1984,22 @@ function renderAlertas(){
   const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
   const venc30 = produtos.filter(p=> { const d=daysUntil(p.validade); return d!==null && d>=0 && d<=30; });
   const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
-  function block(title, list, cls, empty){
+  function block(title, list, cls, empty, modo){
+    const detalhe = p => modo==='validade'
+      ? 'Validade: '+fmtDate(p.validade)+' ('+(daysUntil(p.validade)<0?'vencido':daysUntil(p.validade)+' dia(s)')+')'
+      : 'Estoque: '+fmtNum(p.quantidade)+' '+p.unidade+' / mín. '+fmtNum(p.estoqueMinimo);
     return `<div class="card" style="margin-bottom:16px;">
       <div class="card-title" style="margin-bottom:12px;">${title} <span class="badge ${cls}" style="margin-left:8px;">${list.length}</span></div>
-      ${list.length ? list.map(p=>`<div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13.5px;">
+      ${list.length ? list.map(p=>`<div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13.5px;">
         <span><b>${esc(p.nome)}</b> — ${esc(p.local||'sem local definido')}</span>
-        <span style="color:var(--text-mute);">${p.validade ? 'Validade: '+fmtDate(p.validade) : 'Estoque: '+p.quantidade+' / mín. '+p.estoqueMinimo}</span>
+        <span style="color:var(--text-mute);">${detalhe(p)}</span>
       </div>`).join('') : `<p style="color:var(--text-mute); font-size:13px;">${empty}</p>`}
     </div>`;
   }
   document.getElementById('alertasWrap').innerHTML =
-    block('Produtos vencidos', vencidos, 'badge-danger', 'Nenhum produto vencido.') +
-    block('Vencendo em até 30 dias', venc30, 'badge-warn', 'Nenhum produto vencendo em breve.') +
-    block('Abaixo do estoque mínimo', baixoMin, 'badge-warn', 'Todos os produtos estão com estoque adequado.');
+    block('Produtos vencidos', vencidos, 'badge-danger', 'Nenhum produto vencido.', 'validade') +
+    block('Vencendo em até 30 dias', venc30, 'badge-warn', 'Nenhum produto vencendo em breve.', 'validade') +
+    block('Abaixo do estoque mínimo', baixoMin, 'badge-warn', 'Todos os produtos estão com estoque adequado.', 'estoque');
 }
 
 /* =========================================================
@@ -1815,31 +2021,44 @@ function renderRelatorio(key){
   if(key==='estoque'){
     resumo.innerHTML = `<b>Itens cadastrados:</b> ${produtos.length}`;
     head.innerHTML = '<tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Validade</th></tr>';
-    body.innerHTML = produtos.map(p=>`<tr><td>${esc(p.nome)}</td><td>${esc(p.categoria)}</td><td>${p.quantidade} ${esc(p.unidade)}</td><td>${p.estoqueMinimo}</td><td>${p.validade?fmtDate(p.validade):'—'}</td></tr>`).join('');
+    body.innerHTML = produtos.map(p=>`<tr><td>${esc(p.nome)}</td><td>${esc(p.categoria)}</td><td>${fmtNum(p.quantidade)} ${esc(p.unidade)}</td><td>${fmtNum(p.estoqueMinimo)}</td><td>${p.validade?fmtDate(p.validade):'—'}</td></tr>`).join('');
   }
   else if(key==='movimentacoes'){
     resumo.innerHTML = `<b>Total de movimentações:</b> ${movimentacoes.length}`;
     head.innerHTML = '<tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Motivo</th><th>Quantidade</th><th>Responsável</th></tr>';
-    body.innerHTML = movimentacoes.map(m=>`<tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td>${m.tipo}</td><td>${esc(m.motivo)}</td><td>${m.quantidade}</td><td>${esc(m.responsavel||'')}</td></tr>`).join('');
+    body.innerHTML = movimentacoes.map(m=>`<tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td>${m.tipo==='entrada'?'Entrada':'Saída'}</td><td>${esc(m.motivo)}</td><td>${fmtNum(m.quantidade)}</td><td>${esc(m.responsavel||'')}</td></tr>`).join('');
   }
   else if(key==='consumo-produto'){
+    // agrupa por produto e mostra na unidade DO PRÓPRIO produto (nunca soma L com kg)
     const map = {};
-    movimentacoes.filter(m=>m.tipo==='saida').forEach(m=>{ map[m.produtoNome] = (map[m.produtoNome]||0)+Number(m.quantidade); });
-    resumo.innerHTML = `<b>Produtos com consumo registrado:</b> ${Object.keys(map).length}`;
+    movimentacoes.filter(m=>m.tipo==='saida').forEach(m=>{
+      const prod = produtos.find(x=>x.id===m.produtoId);
+      const chave = m.produtoId || m.produtoNome;
+      if(!map[chave]) map[chave] = {nome:m.produtoNome, unidade: prod?prod.unidade:'', total:0};
+      map[chave].total += Number(m.quantidade)||0;
+    });
+    const linhas = Object.values(map).sort((a,b)=>b.total-a.total);
+    resumo.innerHTML = `<b>Produtos com consumo registrado:</b> ${linhas.length}`;
     head.innerHTML = '<tr><th>Produto</th><th>Consumo total</th></tr>';
-    body.innerHTML = Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.toLocaleString('pt-BR')}</td></tr>`).join('');
+    body.innerHTML = linhas.map(x=>`<tr><td>${esc(x.nome)}</td><td>${fmtNum(x.total)} ${esc(x.unidade)}</td></tr>`).join('');
   }
   else if(key==='consumo-cultivar'){
     const map = {};
-    lotes.forEach(l=>{ map[l.cultivar] = (map[l.cultivar]||0) + (l.itensConsumidos||[]).reduce((s,i)=>s+Number(i.quantidade),0); });
+    lotes.forEach(l=>{
+      const c = l.cultivar || '—';
+      if(!map[c]) map[c] = {lotes:0, sementes:0, l:0, kg:0};
+      map[c].lotes++;
+      map[c].sementes += Number(l.quantidadeSementes)||0;
+      (l.itensConsumidos||[]).forEach(i=>{ const x = toLitrosKg(i.quantidade, i.unidade); map[c].l += x.l; map[c].kg += x.kg; });
+    });
     resumo.innerHTML = `<b>Cultivares tratados:</b> ${Object.keys(map).length}`;
-    head.innerHTML = '<tr><th>Cultivar</th><th>Consumo total de insumos</th></tr>';
-    body.innerHTML = Object.entries(map).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.toLocaleString('pt-BR')}</td></tr>`).join('');
+    head.innerHTML = '<tr><th>Cultivar</th><th>Lotes</th><th>Sementes (kg)</th><th>Líquidos (L)</th><th>Pó/sólidos (kg)</th></tr>';
+    body.innerHTML = Object.entries(map).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.lotes}</td><td>${fmtNum(v.sementes)}</td><td>${fmtNum(+v.l.toFixed(3))}</td><td>${fmtNum(+v.kg.toFixed(3))}</td></tr>`).join('');
   }
   else if(key==='consumo-lote'){
     resumo.innerHTML = `<b>Lotes tratados:</b> ${lotes.length}`;
     head.innerHTML = '<tr><th>Lote</th><th>Cultivar</th><th>Sementes (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
-    body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${l.quantidadeSementes}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+i.quantidade+' '+i.unidade).join(', ')}</td></tr>`).join('');
+    body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${fmtNum(l.quantidadeSementes)}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade).join(', ')}</td></tr>`).join('');
   }
 }
 document.getElementById('btnExportExcel').addEventListener('click', ()=>{
