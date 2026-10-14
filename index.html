@@ -1645,8 +1645,12 @@ document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRec
 function doseBaseUnit(unidade){ return unidade==='kg' ? 'g' : 'mL'; }
 function doseLabel(unidade){ return doseBaseUnit(unidade)+'/kg'; }
 function familiaUnidade(unidade){ return unidade==='kg' ? 'massa' : 'volume'; }
+function produtoDoItem(item){
+  return produtos.find(p=>p.id===item.produtoId)
+      || produtos.find(p=>normNome(p.nome)===normNome(item.produtoNome));
+}
 function unidadeDoItem(item){
-  const prod = produtos.find(p=>p.id===item.produtoId);
+  const prod = produtoDoItem(item);
   return (prod && prod.unidade) || item.unidade || 'L';
 }
 function getDoseItem(item){
@@ -1786,8 +1790,9 @@ function planoImportacao(){
     }
   });
   const novasReceitas = IMPORT_RECEITAS.filter(r=>!recExist.has(normNome(r[0])));
+  const recDocs = {}; receitas.forEach(r=>{ recDocs[normNome(r.nome)] = r; });
   const puladas = IMPORT_RECEITAS.filter(r=>recExist.has(normNome(r[0]))).map(r=>r[0]);
-  return {prodExist, novosProdutos, novasReceitas, puladas, avisos};
+  return {prodExist, novosProdutos, novasReceitas, puladas, avisos, recDocs};
 }
 document.getElementById('btnImportReceitas').addEventListener('click', ()=>{
   const pl = planoImportacao();
@@ -1798,14 +1803,18 @@ document.getElementById('btnImportReceitas').addEventListener('click', ()=>{
     <p style="font-size:13.5px; margin-bottom:6px;">Produtos que ainda não existem e serão criados com estoque zero: <b>${pl.novosProdutos.length}</b></p>
     ${pl.novosProdutos.length ? `<p style="font-size:12.5px; color:var(--text-soft); margin-bottom:10px;">${pl.novosProdutos.map(n=>esc(n)+' ('+IMPORT_PRODUTOS[n].un+')').join(' · ')}</p>`:''}
     ${pl.avisos.length ? `<div style="background:var(--warn-bg,#FFF6E0); padding:10px 12px; border-radius:8px; font-size:12.5px; color:var(--warn-text);">${pl.avisos.map(esc).join('<br>')}</div>`:''}
+    ${pl.puladas.length ? `<label style="display:flex; gap:8px; align-items:flex-start; font-size:13px; margin-top:12px;"><input type="checkbox" id="impAtualizar" style="margin-top:3px;"> <span>Atualizar também as ${pl.puladas.length} receitas que já existem (troca os produtos e as doses pelos desta lista)</span></label>`:''}
     <p style="font-size:12px; color:var(--text-mute); margin-top:12px;">Doses: mL/kg para líquidos e g/kg para F028 e FLINT 500 WG. Depois de importar, preencha quantidade, validade e ingrediente ativo dos produtos novos.</p>`;
-  document.getElementById('btnConfirmImport').disabled = !pl.novasReceitas.length;
+  document.getElementById('btnConfirmImport').disabled = !(pl.novasReceitas.length || pl.puladas.length);
   openModal('modalImportReceitas');
 });
 document.getElementById('btnConfirmImport').addEventListener('click', async ()=>{
   const btn = document.getElementById('btnConfirmImport');
   const pl = planoImportacao();
-  if(!pl.novasReceitas.length) return;
+  const chk = document.getElementById('impAtualizar');
+  const atualizar = !!(chk && chk.checked);
+  const alvo = atualizar ? IMPORT_RECEITAS : pl.novasReceitas;
+  if(!alvo.length) return;
   btn.disabled = true; btn.textContent = 'Importando...';
   try{
     const batch = db.batch();
@@ -1813,7 +1822,7 @@ document.getElementById('btnConfirmImport').addEventListener('click', async ()=>
     const mapa = {}; // nome normalizado -> {id, nome, unidade, ingredienteAtivo}
     Object.keys(pl.prodExist).forEach(k=>{ const p=pl.prodExist[k]; mapa[k]={id:p.id,nome:p.nome||'',unidade:p.unidade||'L',ingredienteAtivo:p.ingredienteAtivo||''}; });
     // só cria produtos realmente usados pelas receitas novas
-    const usados = new Set(); pl.novasReceitas.forEach(r=>r[1].forEach(i=>usados.add(normNome(i[0]))));
+    const usados = new Set(); alvo.forEach(r=>r[1].forEach(i=>usados.add(normNome(i[0]))));
     pl.novosProdutos.filter(n=>usados.has(normNome(n))).forEach(n=>{
       const ref = db.collection('produtos').doc();
       const d = IMPORT_PRODUTOS[n];
@@ -1821,14 +1830,16 @@ document.getElementById('btnConfirmImport').addEventListener('click', async ()=>
         quantidade:0, estoqueMinimo:0, local:'', observacoes:'Criado na importação das receitas Soja 2025/2026', criadoEm:ts, atualizadoEm:ts});
       mapa[normNome(n)] = {id:ref.id, nome:n, unidade:d.un, ingredienteAtivo:''};
     });
-    pl.novasReceitas.forEach(r=>{
+    alvo.forEach(r=>{
       const itens = r[1].map(i=>{ const m = mapa[normNome(i[0])];
         return {produtoId:m.id, produtoNome:m.nome, unidade:m.unidade, ingredienteAtivo:m.ingredienteAtivo, dosePorKg:i[1]}; });
-      batch.set(db.collection('receitas').doc(), {nome:r[0], itens, observacoes:'Soja — Safra 2025/2026', criadoEm:ts});
+      const existente = pl.recDocs[normNome(r[0])];
+      if(existente) batch.update(db.collection('receitas').doc(existente.id), {itens, observacoes:'Soja — Safra 2025/2026'});
+      else batch.set(db.collection('receitas').doc(), {nome:r[0], itens, observacoes:'Soja — Safra 2025/2026', criadoEm:ts});
     });
     await batch.commit();
     closeModal('modalImportReceitas');
-    toast(pl.novasReceitas.length+' receitas importadas');
+    toast(alvo.length+' receitas importadas');
   }catch(e){
     console.error(e);
     const cod = (e && (e.code||e.message)) ? String(e.code||e.message) : 'desconhecido';
@@ -1924,7 +1935,7 @@ function getCultivarSelecionado(){
 }
 function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
 function candidatosParaItem(item){
-  const ref = produtos.find(p=>p.id===item.produtoId);
+  const ref = produtoDoItem(item);
   const ingrediente = normalizeTxt(item.ingredienteAtivo || (ref?ref.ingredienteAtivo:''));
   // substituto precisa ser da mesma família (kg com kg; L/mL com L/mL), senão a dose (g/kg x mL/kg) não faz sentido
   const familia = familiaUnidade(unidadeDoItem(item));
@@ -1957,7 +1968,7 @@ function renderLotePreview(){
   const kg = Number(document.getElementById('lQuantidade').value)||0;
   document.getElementById('lotePreview').innerHTML = loteItensAtuais.map((item, idx)=>{
     const produto = produtos.find(p=>p.id===item.selectedProdutoId);
-    const unidade = produto ? produto.unidade : '';
+    const unidade = produto ? produto.unidade : unidadeDoItem(item.receitaItem);
     const consumo = consumoDoItem(item.receitaItem, produto, kg);
     const disponivel = produto ? Number(produto.quantidade) : 0;
     const suficiente = disponivel >= consumo;
@@ -1971,7 +1982,7 @@ function renderLotePreview(){
             </select>`
           : `<span>${esc(produto ? produto.nome : item.receitaItemNome)}</span>`
         }
-        <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${fmtNum(consumo)} ${esc(unidade)} ${suficiente?'':' — insuficiente!'}</b>
+        <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${fmtNum(consumo)} ${esc(unidade)}${suficiente?'':(produto ? ' — falta '+fmtNum(consumo-disponivel)+' '+esc(unidade)+' (estoque: '+fmtNum(disponivel)+' '+esc(unidade)+')' : ' — produto não encontrado no cadastro')}</b>
       </div>
       ${temAlternativas ? '<div style="font-size:11px; color:var(--text-mute); margin-top:2px;">Mesmo ingrediente ativo — pode trocar o produto usado</div>' : ''}
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${suficiente?'var(--green)':'var(--danger)'}"></div></div>
