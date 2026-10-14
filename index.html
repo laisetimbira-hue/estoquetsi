@@ -582,6 +582,7 @@ tbody tr:hover{background:#FAFCFA;}
         <section class="section" id="section-receitas">
           <div class="toolbar">
             <div class="grow"></div>
+            <button class="btn btn-ghost" id="btnZerarDados" style="color:var(--danger);">Zerar dados</button>
             <button class="btn btn-ghost" id="btnImportReceitas">Importar receitas da safra</button>
             <button class="btn btn-primary" id="btnNovaReceita">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -721,6 +722,16 @@ tbody tr:hover{background:#FAFCFA;}
 </div>
 
 <!-- ============ MODAL: RECEITA ============ -->
+<div class="modal-overlay" id="modalZerar">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Zerar a plataforma</div><button class="modal-close" onclick="closeModal('modalZerar')">✕</button></div>
+    <div class="modal-body" id="zerarBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalZerar')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmZerar" style="background:var(--danger);">Apagar tudo</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalImportReceitas">
   <div class="modal modal-lg">
     <div class="modal-head"><div class="modal-title">Importar receitas — Soja 2025/2026</div><button class="modal-close" onclick="closeModal('modalImportReceitas')">✕</button></div>
@@ -1749,18 +1760,18 @@ const IMPORT_PRODUTOS = {
   'ACRESCENT RAIZ F PLUS':{un:'L',cat:'Outro'}
 };
 const IMPORT_RECEITAS = [
-  ['A+APRON',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['APRON',1],['TERRA FORTE FIPRONIL',1]]],
-  ['A+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['FIPRONIL NORTOX MAX',1]]],
-  ['TSI B',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
-  ['TSI B+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5]]],
-  ['TSI B+L+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7]]],
-  ['TSI B+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
+  ['A+APRON',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['APRON',1],['TERRA FORTE FIPRONIL',1]]],
+  ['A+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['FIPRONIL NORTOX MAX',1]]],
+  ['TSI B',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
+  ['TSI B+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5]]],
+  ['TSI B+L+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2],['FIPRONIL NORTOX MAX',0.5],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7]]],
+  ['TSI B+LV',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5],['FIPRONIL NORTOX MAX',0.5]]],
   ['BAYER',[['REDIGO',0.3],['FLINT 500 WG',0.2],['GAUCHO',1.5],['LAUNCHER',0.8],['FIPRONIL NORTOX MAX',0.5]]],
-  ['TSI C',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5]]],
-  ['TSI C+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',1.5],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2]]],
-  ['COASA',[['LUMITREO',0.3],['L-270',1.5],['F028',1.5],['TMSP POWER',2.5],['FIPRONIL NORTOX MAX',1]]],
-  ['TREVO',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',2],['ACRESCENT RAIZ F PLUS',1]]],
-  ['TREVO+LV',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',2],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7],['ACRESCENT RAIZ F PLUS',1]]]
+  ['TSI C',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5]]],
+  ['TSI C+L',[['LUMITREO',0.3],['LAUNCHER',0.8],['L-270',2],['F028',1.5],['DERMACOR',0.5],['LUMIALZA',0.2]]],
+  ['COASA',[['LUMITREO',0.3],['L-270',2],['F028',1.5],['TMSP POWER',2],['FIPRONIL NORTOX MAX',1]]],
+  ['TREVO',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',1],['ACRESCENT RAIZ F PLUS',1]]],
+  ['TREVO+LV',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',1],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7],['ACRESCENT RAIZ F PLUS',1]]]
 ];
 function normNome(n){ return (n||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9+]/g,''); }
 function planoImportacao(){
@@ -1800,7 +1811,7 @@ document.getElementById('btnConfirmImport').addEventListener('click', async ()=>
     const batch = db.batch();
     const ts = firebase.firestore.FieldValue.serverTimestamp();
     const mapa = {}; // nome normalizado -> {id, nome, unidade, ingredienteAtivo}
-    Object.keys(pl.prodExist).forEach(k=>{ const p=pl.prodExist[k]; mapa[k]={id:p.id,nome:p.nome,unidade:p.unidade,ingredienteAtivo:p.ingredienteAtivo||''}; });
+    Object.keys(pl.prodExist).forEach(k=>{ const p=pl.prodExist[k]; mapa[k]={id:p.id,nome:p.nome||'',unidade:p.unidade||'L',ingredienteAtivo:p.ingredienteAtivo||''}; });
     // só cria produtos realmente usados pelas receitas novas
     const usados = new Set(); pl.novasReceitas.forEach(r=>r[1].forEach(i=>usados.add(normNome(i[0]))));
     pl.novosProdutos.filter(n=>usados.has(normNome(n))).forEach(n=>{
@@ -1819,9 +1830,69 @@ document.getElementById('btnConfirmImport').addEventListener('click', async ()=>
     closeModal('modalImportReceitas');
     toast(pl.novasReceitas.length+' receitas importadas');
   }catch(e){
-    console.error(e); toast('Erro ao importar receitas', true);
+    console.error(e);
+    const cod = (e && (e.code||e.message)) ? String(e.code||e.message) : 'desconhecido';
+    const dica = /permission|insufficient/i.test(cod) ? ' — o Firebase bloqueou a gravação (regras do Firestore)' : '';
+    document.getElementById('importReceitasBody').insertAdjacentHTML('beforeend',
+      '<div style="margin-top:12px; padding:10px 12px; border-radius:8px; background:#FDECEC; color:#9B2C2C; font-size:12.5px;"><b>Erro:</b> '+esc(cod)+esc(dica)+'</div>');
+    toast('Erro ao importar: '+cod.slice(0,80), true);
   }
   btn.disabled = false; btn.textContent = 'Importar agora';
+});
+/* ---- Zerar dados (mantém receitas + produtos usados por elas, com saldo 0) ---- */
+function planoZerar(){
+  const usados = new Set(); receitas.forEach(r=>(r.itens||[]).forEach(i=>usados.add(i.produtoId)));
+  return {
+    movs: movimentacoes, lotes: lotes,
+    manter: produtos.filter(p=>usados.has(p.id)),
+    apagarProd: produtos.filter(p=>!usados.has(p.id))
+  };
+}
+document.getElementById('btnZerarDados').addEventListener('click', ()=>{
+  const pl = planoZerar();
+  const semReceitas = receitas.length===0;
+  document.getElementById('zerarBody').innerHTML = `
+    <p style="font-size:13.5px; margin-bottom:10px;"><b>Isto não pode ser desfeito.</b></p>
+    ${semReceitas ? `<p style="font-size:13px; color:var(--danger); margin-bottom:10px;">Nenhuma receita cadastrada. Importe as receitas primeiro, senão todos os produtos seriam apagados.</p>`:''}
+    <ul style="font-size:13.5px; margin:0 0 12px 18px; line-height:1.7;">
+      <li>Apagar <b>${pl.movs.length}</b> movimentações</li>
+      <li>Apagar <b>${pl.lotes.length}</b> lotes tratados</li>
+      <li>Apagar <b>${pl.apagarProd.length}</b> produtos que não estão em nenhuma receita${pl.apagarProd.length?': <span style="color:var(--text-soft);">'+pl.apagarProd.slice(0,12).map(p=>esc(p.nome)).join(', ')+(pl.apagarProd.length>12?'…':'')+'</span>':''}</li>
+      <li>Zerar o saldo de <b>${pl.manter.length}</b> produtos usados nas receitas (eles ficam cadastrados)</li>
+      <li>Manter as <b>${receitas.length}</b> receitas</li>
+    </ul>
+    <div class="field"><label>Para confirmar, digite ZERAR</label><input id="zerarConfirma" autocomplete="off"></div>`;
+  const btn = document.getElementById('btnConfirmZerar');
+  btn.disabled = true;
+  document.getElementById('zerarConfirma').addEventListener('input', e=>{ btn.disabled = semReceitas || e.target.value.trim().toUpperCase()!=='ZERAR'; });
+  openModal('modalZerar');
+});
+document.getElementById('btnConfirmZerar').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btnConfirmZerar');
+  const pl = planoZerar();
+  btn.disabled = true; btn.textContent = 'Apagando...';
+  try{
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    const ops = [];
+    pl.movs.forEach(m=>ops.push(['del', db.collection('movimentacoes').doc(m.id)]));
+    pl.lotes.forEach(l=>ops.push(['del', db.collection('lotesTratamento').doc(l.id)]));
+    pl.apagarProd.forEach(p=>ops.push(['del', db.collection('produtos').doc(p.id)]));
+    pl.manter.forEach(p=>ops.push(['upd', db.collection('produtos').doc(p.id), {quantidade:0, atualizadoEm:ts}]));
+    for(let i=0;i<ops.length;i+=400){
+      const batch = db.batch();
+      ops.slice(i,i+400).forEach(o=> o[0]==='del' ? batch.delete(o[1]) : batch.update(o[1],o[2]));
+      await batch.commit();
+    }
+    closeModal('modalZerar');
+    toast('Plataforma zerada. Receitas mantidas.');
+  }catch(e){
+    console.error(e);
+    const cod = (e && (e.code||e.message)) ? String(e.code||e.message) : 'desconhecido';
+    document.getElementById('zerarBody').insertAdjacentHTML('beforeend',
+      '<div style="margin-top:12px; padding:10px 12px; border-radius:8px; background:#FDECEC; color:#9B2C2C; font-size:12.5px;"><b>Erro:</b> '+esc(cod)+'</div>');
+    toast('Erro ao zerar: '+cod.slice(0,80), true);
+  }
+  btn.textContent = 'Apagar tudo';
 });
 function fillReceitaSelect(){
   document.getElementById('lReceita').innerHTML = receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
