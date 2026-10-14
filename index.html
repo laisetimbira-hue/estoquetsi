@@ -605,7 +605,7 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Data</th><th>Cultivar</th><th>Lote</th><th>Sementes (kg)</th><th>Receita</th><th>Operador</th><th></th>
+                <th>Data</th><th>Cultivar</th><th>N° da ordem</th><th>Sementes (kg)</th><th>Receita</th><th>Operador</th><th></th>
               </tr></thead>
               <tbody id="tblLotes"></tbody>
             </table>
@@ -625,7 +625,7 @@ tbody tr:hover{background:#FAFCFA;}
             <span class="chip-filter" data-rel="movimentacoes">Histórico de movimentações</span>
             <span class="chip-filter" data-rel="consumo-produto">Consumo por produto</span>
             <span class="chip-filter" data-rel="consumo-cultivar">Consumo por cultivar</span>
-            <span class="chip-filter" data-rel="consumo-lote">Consumo por lote</span>
+            <span class="chip-filter" data-rel="consumo-lote">Consumo por ordem</span>
             <div class="grow"></div>
             <button class="btn btn-ghost btn-sm" id="btnExportExcel">Exportar Excel</button>
             <button class="btn btn-ghost btn-sm" id="btnExportPdf">Exportar PDF</button>
@@ -791,7 +791,7 @@ tbody tr:hover{background:#FAFCFA;}
           </select>
           <input id="lCultivarManual" placeholder="Digite o nome do cultivar" style="display:none; margin-top:8px;">
         </div>
-        <div class="field"><label>Número do lote</label><input id="lLote" placeholder="Ex: 26S310H"></div>
+        <div class="field"><label>N° da ordem</label><input id="lLote" placeholder="Número da ordem do sistema"></div>
         <div class="field"><label>Quantidade de sementes (kg)</label><input type="number" step="0.01" id="lQuantidade" placeholder="0"></div>
         <div class="field"><label>Receita utilizada</label><select id="lReceita"></select></div>
         <div class="field"><label>Operador</label><input id="lOperador" placeholder="Nome do operador"></div>
@@ -1341,7 +1341,7 @@ function renderCentroOperacoes(){
   document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
     <div style="padding:10px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
       <div style="display:flex; justify-content:space-between;"><b>${esc(l.cultivar)}</b><span style="color:var(--text-mute); font-size:12px;">${l.criadoEm ? new Date(l.criadoEm.seconds*1000).toLocaleString('pt-BR') : fmtDate(l.data)}</span></div>
-      <div style="color:var(--text-soft); font-size:12.5px;">Lote ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg</div>
+      <div style="color:var(--text-soft); font-size:12.5px;">Ordem ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg</div>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum lote tratado nesse período.</p>';
 
   // Consumo de produtos (por dia, dentro do período filtrado)
@@ -1423,7 +1423,7 @@ function renderCentroOperacoes(){
     const produto = produtos.find(p=>p.id===m.produtoId);
     eventos.push({ ts: m.criadoEm ? m.criadoEm.seconds*1000 : parseLocalDate(m.data).getTime(), texto: `${m.tipo==='entrada'?'Entrada':'Saída'} de ${m.produtoNome} — ${fmtNum(m.quantidade)} ${produto?produto.unidade:''} (${m.motivo})` });
   });
-  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : parseLocalDate(l.data).getTime(), texto: `Lote ${l.numeroLote} tratado — ${l.cultivar} (${l.receitaNome})` }));
+  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : parseLocalDate(l.data).getTime(), texto: `Ordem ${l.numeroLote} tratada — ${l.cultivar} (${l.receitaNome})` }));
   eventos.sort((a,b)=>b.ts-a.ts);
   document.getElementById('coTimeline').innerHTML = eventos.length ? eventos.slice(0,50).map(e=>`
     <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
@@ -2010,7 +2010,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const numeroLote = document.getElementById('lLote').value.trim();
   const kg = Number(document.getElementById('lQuantidade').value);
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
-  if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos do lote', true); return; }
+  if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos (inclusive o N° da ordem)', true); return; }
   const itens = getLoteConsumoFinal(kg);
   if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
   const insuficiente = itens.find(i=>!i.suficiente);
@@ -2033,7 +2033,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     batch.set(movRef, {
       produtoId: i.produtoId, produtoNome: i.produtoNome, tipo:'saida', motivo:'Consumo em tratamento de sementes',
       quantidade: i.consumo, data: document.getElementById('lData').value,
-      observacoes: `Lote ${numeroLote} — ${cultivar} (receita: ${receita.nome})`,
+      observacoes: `Ordem ${numeroLote} — ${cultivar} (receita: ${receita.nome})`,
       responsavel: currentUserData.nome || 'Usuário', saldoApos: novoSaldo,
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -2056,7 +2056,7 @@ function verLote(id){
   const l = lotes.find(x=>x.id===id);
   if(!l) return;
   const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
-  alert('Lote ' + l.numeroLote + ' (' + l.cultivar + ')\n\nConsumo:\n' + linhas.join('\n'));
+  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')\n\nConsumo:\n' + linhas.join('\n'));
 }
 
 /* =========================================================
@@ -2139,7 +2139,7 @@ function renderRelatorio(key){
   }
   else if(key==='consumo-lote'){
     resumo.innerHTML = `<b>Lotes tratados:</b> ${lotes.length}`;
-    head.innerHTML = '<tr><th>Lote</th><th>Cultivar</th><th>Sementes (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
+    head.innerHTML = '<tr><th>N° da ordem</th><th>Cultivar</th><th>Sementes (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
     body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${fmtNum(l.quantidadeSementes)}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade).join(', ')}</td></tr>`).join('');
   }
 }
@@ -2151,7 +2151,7 @@ document.getElementById('btnExportExcel').addEventListener('click', ()=>{
 const NOMES_RELATORIO = {
   'estoque':'Estoque atual', 'movimentacoes':'Histórico de movimentações',
   'consumo-produto':'Consumo por produto', 'consumo-cultivar':'Consumo por cultivar',
-  'consumo-lote':'Consumo por lote'
+  'consumo-lote':'Consumo por ordem'
 };
 document.getElementById('btnExportPdf').addEventListener('click', ()=>{
   const agora = new Date();
