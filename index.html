@@ -952,58 +952,43 @@ function doLogin(){
   errEl.style.display = 'none';
   if(!email || !pass){ errEl.textContent = 'Informe e-mail e senha.'; errEl.style.display='block'; return; }
   auth.signInWithEmailAndPassword(email, pass).catch(err=>{
-    errEl.textContent = 'Não foi possível entrar. Verifique e-mail e senha.';
+    const c = (err && err.code) || '';
+    errEl.textContent = /network/.test(c) ? 'Sem conexão com a internet.'
+      : /too-many/.test(c) ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
+      : /operation-not-allowed|configuration/.test(c) ? 'Login por e-mail/senha ainda não está ativado no Firebase.'
+      : 'Não foi possível entrar. Verifique e-mail e senha.';
     errEl.style.display = 'block';
   });
 }
 
 document.getElementById('btnLogout').addEventListener('click', ()=>{ auth.signOut(); });
 
-/* LOGIN TEMPORARIAMENTE DESATIVADO
-   Para reativar o login por e-mail/senha, apague o bloco abaixo e
-   descomente o bloco original (mantido logo em seguida, comentado). */
-document.getElementById('loadingScreen').style.display = 'none';
-document.getElementById('login-screen').style.display = 'none';
-document.getElementById('app').style.display = 'block';
-currentUserData = { nome: 'Administrador', perfil: 'administrador' };
-document.getElementById('userName').textContent = currentUserData.nome;
-document.getElementById('userRole').textContent = currentUserData.perfil;
-document.getElementById('userAvatar').textContent = currentUserData.nome.slice(0,1).toUpperCase();
-applyRolePermissions();
-initListeners();
-
-/* BLOCO ORIGINAL (com login por e-mail/senha) — descomente para reativar:
+/* LOGIN ÚNICO COMPARTILHADO
+   Todos entram com a mesma conta (e-mail + senha) criada no Firebase Authentication.
+   Quem não está logado não vê nada, e as regras do Firestore também só aceitam usuário logado. */
+const USUARIO_UNICO = { nome: 'Equipe TSI', perfil: 'administrador' };
 auth.onAuthStateChanged(user=>{
   document.getElementById('loadingScreen').style.display = 'none';
+  unsubs.forEach(u=>{ try{u();}catch(e){} });
+  unsubs = [];
   if(user){
     currentUser = user;
+    const prefixo = (user.email||'').split('@')[0].replace(/[._-]+/g,' ').trim();
+    const nomeLogin = prefixo ? prefixo.replace(/\b\w/g, c=>c.toUpperCase()) : USUARIO_UNICO.nome;
+    currentUserData = { nome: nomeLogin, email: user.email, perfil: USUARIO_UNICO.perfil };
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-    loadUserProfile(user).then(()=> initListeners());
+    document.getElementById('userName').textContent = currentUserData.nome;
+    document.getElementById('userRole').textContent = 'Equipe TSI';
+    document.getElementById('userAvatar').textContent = currentUserData.nome.slice(0,1).toUpperCase();
+    applyRolePermissions();
+    initListeners();
   } else {
     currentUser = null;
-    unsubs.forEach(u=>u());
-    unsubs = [];
     document.getElementById('app').style.display = 'none';
     document.getElementById('login-screen').style.display = 'flex';
   }
 });
-*/
-
-function loadUserProfile(user){
-  return db.collection('usuarios').doc(user.uid).get().then(doc=>{
-    if(doc.exists){
-      currentUserData = doc.data();
-    } else {
-      currentUserData = { nome: user.email.split('@')[0], email: user.email, perfil:'administrador' };
-      db.collection('usuarios').doc(user.uid).set(currentUserData);
-    }
-    document.getElementById('userName').textContent = currentUserData.nome || user.email;
-    document.getElementById('userRole').textContent = currentUserData.perfil || 'operador';
-    document.getElementById('userAvatar').textContent = (currentUserData.nome || user.email).slice(0,1).toUpperCase();
-    applyRolePermissions();
-  });
-}
 
 function applyRolePermissions(){
   const perfil = currentUserData.perfil || 'operador';
@@ -1012,7 +997,7 @@ function applyRolePermissions(){
   document.querySelectorAll('[id^="btnNovo"], [id^="btnSalvar"], #btnAddRecipeItem').forEach(b=>{
     b.style.display = isViewer ? 'none' : '';
   });
-  document.querySelector('.nav-item[data-section="usuarios"]').style.display = isAdmin ? 'flex' : 'none';
+  document.querySelector('.nav-item[data-section="usuarios"]').style.display = 'none'; // login único: sem gestão de usuários no app
 }
 
 /* =========================================================
