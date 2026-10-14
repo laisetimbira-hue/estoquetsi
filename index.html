@@ -602,10 +602,17 @@ tbody tr:hover{background:#FAFCFA;}
               Tratar novo lote
             </button>
           </div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-head" style="margin-bottom:8px;"><div class="card-title">Sobra de semente tratada por TSI e cultivar</div></div>
+            <div class="table-wrap" style="border:none;"><table>
+              <thead><tr><th>TSI (receita)</th><th>Cultivar</th><th>Ordens</th><th>Tratado (kg)</th><th>Sobra (kg)</th><th>% sobra</th></tr></thead>
+              <tbody id="tblSobraResumo"></tbody>
+            </table></div>
+          </div>
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Data</th><th>Cultivar</th><th>N° da ordem</th><th>Sementes (kg)</th><th>Receita</th><th>Operador</th><th></th>
+                <th>Data</th><th>Cultivar</th><th>N° da ordem</th><th>Sementes (kg)</th><th>Sobra (kg)</th><th>Receita</th><th>Operador</th><th></th>
               </tr></thead>
               <tbody id="tblLotes"></tbody>
             </table>
@@ -626,6 +633,7 @@ tbody tr:hover{background:#FAFCFA;}
             <span class="chip-filter" data-rel="consumo-produto">Consumo por produto</span>
             <span class="chip-filter" data-rel="consumo-cultivar">Consumo por cultivar</span>
             <span class="chip-filter" data-rel="consumo-lote">Consumo por ordem</span>
+            <span class="chip-filter" data-rel="sobra">Sobra de semente tratada</span>
             <div class="grow"></div>
             <button class="btn btn-ghost btn-sm" id="btnExportExcel">Exportar Excel</button>
             <button class="btn btn-ghost btn-sm" id="btnExportPdf">Exportar PDF</button>
@@ -796,6 +804,7 @@ tbody tr:hover{background:#FAFCFA;}
         <div class="field"><label>Receita utilizada</label><select id="lReceita"></select></div>
         <div class="field"><label>Operador</label><input id="lOperador" placeholder="Nome do operador"></div>
         <div class="field"><label>Data</label><input type="date" id="lData"></div>
+        <div class="field"><label>Sobra de semente tratada (kg)</label><input type="number" step="0.01" min="0" id="lSobra" placeholder="0 — pode informar depois"></div>
       </div>
       <div class="card" style="margin-top:16px; background:var(--green-soft); border-color:var(--green);">
         <div class="card-title" style="margin-bottom:10px; font-size:13.5px;">Consumo calculado</div>
@@ -805,6 +814,21 @@ tbody tr:hover{background:#FAFCFA;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modalLote')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarLote">Confirmar tratamento e baixar estoque</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalSobra">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Sobra de semente tratada</div><button class="modal-close" onclick="closeModal('modalSobra')">✕</button></div>
+    <div class="modal-body">
+      <p id="sobraInfo" style="font-size:13px; color:var(--text-soft); margin-bottom:12px;"></p>
+      <div class="field"><label>Sobra (kg)</label><input type="number" step="0.01" min="0" id="sobraValor" placeholder="0"></div>
+      <p style="font-size:12px; color:var(--text-mute); margin-top:10px;">É a semente já tratada que não foi usada. Para zerar a sobra depois de usar, volte aqui e atualize o valor.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalSobra')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarSobra">Salvar sobra</button>
     </div>
   </div>
 </div>
@@ -1920,6 +1944,7 @@ document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   document.getElementById('lCultivarManual').style.display = 'none';
   document.getElementById('lLote').value = '';
   document.getElementById('lQuantidade').value = '';
+  document.getElementById('lSobra').value = '';
   document.getElementById('lOperador').value = '';
   document.getElementById('lData').value = todayISO();
   loteItensAtuais = [];
@@ -2010,7 +2035,9 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const numeroLote = document.getElementById('lLote').value.trim();
   const kg = Number(document.getElementById('lQuantidade').value);
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
+  const sobraKg = Number(document.getElementById('lSobra').value)||0;
   if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos (inclusive o N° da ordem)', true); return; }
+  if(sobraKg<0 || sobraKg>kg){ toast('A sobra não pode ser maior que a quantidade tratada', true); return; }
   const itens = getLoteConsumoFinal(kg);
   if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
   const insuficiente = itens.find(i=>!i.suficiente);
@@ -2019,7 +2046,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const batch = db.batch();
   const loteRef = db.collection('lotesTratamento').doc();
   batch.set(loteRef, {
-    cultivar, numeroLote, quantidadeSementes: kg, receitaId: receita.id, receitaNome: receita.nome,
+    cultivar, numeroLote, quantidadeSementes: kg, sobraKg, receitaId: receita.id, receitaNome: receita.nome,
     operador: document.getElementById('lOperador').value.trim(),
     data: document.getElementById('lData').value,
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
@@ -2046,17 +2073,53 @@ function renderLotes(){
   document.getElementById('tblLotes').innerHTML = lotes.map(l=>`
     <tr>
       <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
-      <td>${fmtNum(l.quantidadeSementes)}</td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
+      <td>${fmtNum(l.quantidadeSementes)}</td><td><b>${fmtNum(l.sobraKg||0)}</b></td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
       <td><div class="tbl-actions"><button onclick='verLote("${l.id}")' title="Ver consumo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
+      </button><button onclick='openSobra("${l.id}")' title="Informar sobra de semente tratada">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
       </button></div></td>
     </tr>`).join('');
+  renderSobraResumo();
 }
+function sobraAgrupada(){
+  const map = {};
+  lotes.forEach(l=>{
+    const k = (l.receitaNome||'—')+'||'+(l.cultivar||'—');
+    if(!map[k]) map[k] = {tsi:l.receitaNome||'—', cultivar:l.cultivar||'—', ordens:0, tratado:0, sobra:0};
+    map[k].ordens++; map[k].tratado += Number(l.quantidadeSementes)||0; map[k].sobra += Number(l.sobraKg)||0;
+  });
+  return Object.values(map).filter(x=>x.sobra>0).sort((a,b)=>b.sobra-a.sobra);
+}
+function renderSobraResumo(){
+  const g = sobraAgrupada();
+  const tb = document.getElementById('tblSobraResumo');
+  if(!g.length){ tb.innerHTML = '<tr><td colspan="6" style="color:var(--text-mute);">Nenhuma sobra informada ainda. Use o lápis na linha da ordem para informar.</td></tr>'; return; }
+  const tot = g.reduce((a,x)=>({tratado:a.tratado+x.tratado, sobra:a.sobra+x.sobra}),{tratado:0,sobra:0});
+  tb.innerHTML = g.map(x=>`<tr><td>${esc(x.tsi)}</td><td><b>${esc(x.cultivar)}</b></td><td>${x.ordens}</td><td>${fmtNum(x.tratado)}</td><td><b>${fmtNum(+x.sobra.toFixed(2))}</b></td><td>${x.tratado?fmtNum(+(x.sobra/x.tratado*100).toFixed(1)):'0'}%</td></tr>`).join('')
+    + `<tr style="font-weight:700; background:var(--green-soft);"><td colspan="4">Total de sobra</td><td>${fmtNum(+tot.sobra.toFixed(2))} kg</td><td></td></tr>`;
+}
+let editingSobraId = null;
+function openSobra(id){
+  const l = lotes.find(x=>x.id===id); if(!l) return;
+  editingSobraId = id;
+  document.getElementById('sobraInfo').textContent = 'Ordem '+l.numeroLote+' · '+l.cultivar+' · '+l.receitaNome+' · '+fmtNum(l.quantidadeSementes)+' kg tratados';
+  document.getElementById('sobraValor').value = l.sobraKg || '';
+  openModal('modalSobra');
+}
+document.getElementById('btnSalvarSobra').addEventListener('click', ()=>{
+  const l = lotes.find(x=>x.id===editingSobraId); if(!l) return;
+  const v = Number(document.getElementById('sobraValor').value)||0;
+  if(v<0 || v>Number(l.quantidadeSementes)){ toast('A sobra não pode ser maior que a quantidade tratada ('+fmtNum(l.quantidadeSementes)+' kg)', true); return; }
+  db.collection('lotesTratamento').doc(editingSobraId).update({sobraKg:v})
+    .then(()=>{ closeModal('modalSobra'); toast('Sobra registrada'); })
+    .catch(()=>toast('Erro ao salvar a sobra', true));
+});
 function verLote(id){
   const l = lotes.find(x=>x.id===id);
   if(!l) return;
   const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
-  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')\n\nConsumo:\n' + linhas.join('\n'));
+  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg\n\nConsumo:\n' + linhas.join('\n'));
 }
 
 /* =========================================================
@@ -2137,10 +2200,16 @@ function renderRelatorio(key){
     head.innerHTML = '<tr><th>Cultivar</th><th>Lotes</th><th>Sementes (kg)</th><th>Líquidos (L)</th><th>Pó/sólidos (kg)</th></tr>';
     body.innerHTML = Object.entries(map).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.lotes}</td><td>${fmtNum(v.sementes)}</td><td>${fmtNum(+v.l.toFixed(3))}</td><td>${fmtNum(+v.kg.toFixed(3))}</td></tr>`).join('');
   }
+  else if(key==='sobra'){
+    const g = sobraAgrupada(); const tot = g.reduce((a,x)=>a+x.sobra,0);
+    resumo.innerHTML = `<b>Sobra total de semente tratada:</b> ${fmtNum(+tot.toFixed(2))} kg em ${g.length} combinações de TSI e cultivar`;
+    head.innerHTML = '<tr><th>TSI (receita)</th><th>Cultivar</th><th>Ordens</th><th>Tratado (kg)</th><th>Sobra (kg)</th><th>% sobra</th></tr>';
+    body.innerHTML = g.map(x=>`<tr><td>${esc(x.tsi)}</td><td>${esc(x.cultivar)}</td><td>${x.ordens}</td><td>${fmtNum(x.tratado)}</td><td>${fmtNum(+x.sobra.toFixed(2))}</td><td>${x.tratado?fmtNum(+(x.sobra/x.tratado*100).toFixed(1)):'0'}%</td></tr>`).join('');
+  }
   else if(key==='consumo-lote'){
     resumo.innerHTML = `<b>Lotes tratados:</b> ${lotes.length}`;
-    head.innerHTML = '<tr><th>N° da ordem</th><th>Cultivar</th><th>Sementes (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
-    body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${fmtNum(l.quantidadeSementes)}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade).join(', ')}</td></tr>`).join('');
+    head.innerHTML = '<tr><th>N° da ordem</th><th>Cultivar</th><th>Sementes (kg)</th><th>Sobra (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
+    body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${fmtNum(l.quantidadeSementes)}</td><td>${fmtNum(l.sobraKg||0)}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade).join(', ')}</td></tr>`).join('');
   }
 }
 document.getElementById('btnExportExcel').addEventListener('click', ()=>{
@@ -2151,7 +2220,7 @@ document.getElementById('btnExportExcel').addEventListener('click', ()=>{
 const NOMES_RELATORIO = {
   'estoque':'Estoque atual', 'movimentacoes':'Histórico de movimentações',
   'consumo-produto':'Consumo por produto', 'consumo-cultivar':'Consumo por cultivar',
-  'consumo-lote':'Consumo por ordem'
+  'consumo-lote':'Consumo por ordem', 'sobra':'Sobra de semente tratada'
 };
 document.getElementById('btnExportPdf').addEventListener('click', ()=>{
   const agora = new Date();
