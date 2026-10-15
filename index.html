@@ -447,6 +447,7 @@ tbody tr:hover{background:#FAFCFA;}
               <option value="ontem">Ontem</option>
               <option value="7d">Últimos 7 dias</option>
               <option value="30d">Últimos 30 dias</option>
+              <option value="total">Total</option>
             </select>
             <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
             <select class="chip-filter" id="coOperador" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todos">Todos os operadores</option></select>
@@ -1161,6 +1162,7 @@ function periodoRange(periodo){
   if(periodo==='ontem'){ start.setDate(start.getDate()-1); end = new Date(start); end.setHours(23,59,59,999); }
   else if(periodo==='7d'){ start.setDate(start.getDate()-6); }
   else if(periodo==='30d'){ start.setDate(start.getDate()-29); }
+  else if(periodo==='total'){ start = new Date(2000,0,1); }
   return { start, end };
 }
 function dataDentroPeriodo(dataStr, range){
@@ -1281,6 +1283,10 @@ function renderCentroOperacoes(){
 
   // Consumo de produtos (por dia, dentro do período filtrado)
   const range = periodoRange(getCoFiltros().periodo);
+  if(getCoFiltros().periodo==='total'){ // gráfico começa no primeiro registro (não em 2000)
+    const datas = [...movsF.map(m=>m.data), ...lotesF.map(l=>l.data)].filter(Boolean).sort();
+    range.start = datas.length ? parseLocalDate(datas[0]) : new Date(new Date().setHours(0,0,0,0));
+  }
   const dias = [];
   { let cursor = new Date(range.start); while(cursor <= range.end){ dias.push(new Date(cursor)); cursor.setDate(cursor.getDate()+1); } }
   const consumoPorDia = dias.map(d=>{
