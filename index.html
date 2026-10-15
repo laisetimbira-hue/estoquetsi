@@ -1994,7 +1994,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   batch.commit().then(()=>{ closeModal('modalLote'); toast('Lote tratado e estoque atualizado'); })
     .catch(()=> toast('Erro ao salvar tratamento do lote', true));
 });
-function lotesFiltrados(){
+function lotesBuscados(){
   const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
   if(!termo) return lotes;
   return lotes.filter(l=> [l.numeroLote, l.cultivar, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
@@ -2003,7 +2003,7 @@ document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes(
 function renderLotes(){
   // último lançado primeiro (criadoEm; sem criadoEm = acabou de ser lançado, vai pro topo; empate pela data)
   const tsLote = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
-  const lista = lotesFiltrados().slice().sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
+  const lista = lotesBuscados().slice().sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
   const vazio = document.getElementById('emptyLotes');
   vazio.style.display = lista.length ? 'none' : 'block';
   vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhum lote tratado ainda.';
