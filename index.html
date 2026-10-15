@@ -437,7 +437,7 @@ tbody tr:hover{background:#FAFCFA;}
               <option value="hoje">Hoje</option>
               <option value="ontem">Ontem</option>
               <option value="7d">Últimos 7 dias</option>
-              <option value="30d">Últimos 30 dias</option>
+              <option value="30d" selected>Últimos 30 dias</option>
               <option value="total">Total</option>
             </select>
             <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
@@ -473,16 +473,6 @@ tbody tr:hover{background:#FAFCFA;}
             </div>
           </div>
 
-          <div class="card" style="margin-bottom:18px;">
-            <div class="card-head"><div class="card-title">Estoque em tempo real</div></div>
-            <div id="coEstoqueTabela" style="overflow-x:auto;"></div>
-          </div>
-
-          <div class="card" style="margin-bottom:18px;">
-            <div class="card-head"><div class="card-title">Próximos produtos a vencer</div></div>
-            <div class="kpi-grid" id="coVencendoGrid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));"></div>
-          </div>
-
           <div class="grid-2" style="margin-bottom:18px;">
             <div class="card">
               <div class="card-head"><div class="card-title">Últimas movimentações</div></div>
@@ -492,11 +482,6 @@ tbody tr:hover{background:#FAFCFA;}
               <div class="card-head"><div class="card-title">Receitas mais utilizadas</div></div>
               <div id="coRankingReceitas"></div>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head"><div class="card-title">Linha do tempo da operação</div></div>
-            <div id="coTimeline" style="max-height:400px; overflow-y:auto;"></div>
           </div>
         </section>
 
@@ -1244,37 +1229,6 @@ function renderCentroOperacoes(){
     options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'#EEF1EF'}}, y:{grid:{display:false}} } }
   });
 
-  // Estoque em tempo real
-  const f = getCoFiltros();
-  const produtosFiltrados = produtos.filter(p=> f.categoria==='todas' || p.categoria===f.categoria);
-  document.getElementById('coEstoqueTabela').innerHTML = `
-    <table><thead><tr><th>Produto</th><th>Categoria</th><th>Lote</th><th>Estoque</th><th>Situação</th><th>Validade</th></tr></thead>
-    <tbody>${produtosFiltrados.map(p=>{
-      const d = daysUntil(p.validade);
-      const pct = p.estoqueMinimo ? Math.min(100, Math.round((p.quantidade/(p.estoqueMinimo*2))*100)) : 100;
-      let cls='badge-ok', label='Normal', barCor='var(--green)';
-      if(d!==null && d<0){ cls='badge-danger'; label='Vencido'; barCor='var(--danger)'; }
-      else if(d!==null && d<=30){ cls='badge-warn'; label='Vence em breve'; barCor='var(--warn)'; }
-      else if(Number(p.quantidade)<=Number(p.estoqueMinimo||0)){ cls='badge-warn'; label='Estoque baixo'; barCor='var(--danger)'; }
-      return `<tr>
-        <td><b>${esc(p.nome)}</b></td><td>${esc(p.categoria||'—')}</td><td>${esc(p.lote||'—')}</td>
-        <td>${fmtNum(p.quantidade)} ${esc(p.unidade)}<div class="progress-bar" style="width:90px;"><div class="progress-fill" style="width:${pct}%; background:${barCor};"></div></div></td>
-        <td><span class="badge ${cls}">${label}</span></td>
-        <td>${d===null?'—':(d<0?'Vencido':d+' dias')}</td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
-
-  // Próximos a vencer
-  document.getElementById('coVencendoGrid').innerHTML = venc30.length ? venc30.slice().sort((a,b)=>daysUntil(a.validade)-daysUntil(b.validade)).map(p=>`
-    <div class="kpi-card" style="align-items:flex-start;">
-      <div class="kpi-body" style="width:100%;">
-        <div class="kpi-label">${esc(p.nome)}</div>
-        <div class="kpi-value warn" style="font-size:18px;">${daysUntil(p.validade)} dias</div>
-        <div class="kpi-sub">Lote ${esc(p.lote||'—')} · ${fmtNum(p.quantidade)} ${esc(p.unidade)} · ${esc(p.local||'sem local')}</div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="verProdutoNoCentro('${p.id}')">Ver produto</button>
-      </div>
-    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum produto vencendo nos próximos 30 dias.</p>';
-
   // Últimas movimentações (até 20, respeitando filtros)
   const ultimasMovs = movsF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).slice(0,20);
   document.getElementById('coMovimentacoes').innerHTML = ultimasMovs.length ? `<table><thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Responsável</th></tr></thead><tbody>${ultimasMovs.map(m=>`
@@ -1293,21 +1247,7 @@ function renderCentroOperacoes(){
     <div style="margin-bottom:10px;">
       <div style="display:flex; justify-content:space-between; font-size:13px;"><b>${esc(r.nome)}</b><span>${r.usos}x · ${r.sementes.toLocaleString('pt-BR')} kg</span></div>
       <div class="progress-bar"><div class="progress-fill" style="width:${Math.round(r.usos/maxUsos*100)}%;"></div></div>
-    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma receita utilizada no período.</p>';
-
-  // Timeline da operação
-  const eventos = [];
-  movsF.forEach(m=>{
-    const produto = produtos.find(p=>p.id===m.produtoId);
-    eventos.push({ ts: m.criadoEm ? m.criadoEm.seconds*1000 : parseLocalDate(m.data).getTime(), texto: `${m.tipo==='entrada'?'Entrada':'Saída'} de ${m.produtoNome} — ${fmtNum(m.quantidade)} ${produto?produto.unidade:''} (${m.motivo})` });
-  });
-  lotesF.forEach(l=> eventos.push({ ts: l.criadoEm ? l.criadoEm.seconds*1000 : parseLocalDate(l.data).getTime(), texto: `Ordem ${l.numeroLote} tratada — ${l.cultivar} (${l.receitaNome})` }));
-  eventos.sort((a,b)=>b.ts-a.ts);
-  document.getElementById('coTimeline').innerHTML = eventos.length ? eventos.slice(0,50).map(e=>`
-    <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
-      <span style="color:var(--text-mute); min-width:130px;">${new Date(e.ts).toLocaleString('pt-BR')}</span>
-      <span>${esc(e.texto)}</span>
-    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum evento no período.</p>';
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma ordem de tratamento no período — mude o período lá em cima.</p>';
 }
 function verProdutoNoCentro(id){
   document.querySelector('.nav-item[data-section="produtos"]').click();
