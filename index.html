@@ -1730,9 +1730,12 @@ document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
   promise.then(()=>{ closeModal('modalReceita'); toast('Receita salva'); })
     .catch(()=>toast('Erro ao salvar receita', true));
 });
+function receitasOrdenadas(){
+  return [...receitas].sort((a,b)=> nomeCurtoReceita(a.nome).localeCompare(nomeCurtoReceita(b.nome),'pt-BR',{numeric:true,sensitivity:'base'}));
+}
 function renderReceitas(){
   document.getElementById('emptyReceitas').style.display = receitas.length ? 'none' : 'block';
-  document.getElementById('receitasGrid').innerHTML = receitas.map(r=>`
+  document.getElementById('receitasGrid').innerHTML = receitasOrdenadas().map(r=>`
     <div class="card">
       <div class="card-head" style="margin-bottom:10px;">
         <div class="card-title">${esc(r.nome)}</div>
@@ -1918,7 +1921,7 @@ function nomeCurtoReceita(n){ return (n||'').replace(/^\s*TSI\s+/i,'').trim(); }
 function fillReceitaSelect(){
   const sel = document.getElementById('lReceita');
   const anterior = sel.value;
-  const ordenadas = [...receitas].sort((a,b)=> nomeCurtoReceita(a.nome).localeCompare(nomeCurtoReceita(b.nome),'pt-BR',{numeric:true,sensitivity:'base'}));
+  const ordenadas = receitasOrdenadas();
   sel.innerHTML = ordenadas.map(r=>`<option value="${r.id}">${esc(nomeCurtoReceita(r.nome))}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
   if(anterior && ordenadas.some(r=>r.id===anterior)) sel.value = anterior;
 }
