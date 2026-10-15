@@ -392,11 +392,6 @@ tbody tr:hover{background:#FAFCFA;}
         </div>
 
         <div class="nav-label">Gestão</div>
-        <div class="nav-item" data-section="alertas">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          Alertas
-          <span class="nav-badge" id="navAlertBadge" style="display:none;">0</span>
-        </div>
         <div class="nav-item" data-section="relatorios">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h1"/></svg>
           Relatórios
@@ -431,10 +426,6 @@ tbody tr:hover{background:#FAFCFA;}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" id="globalSearch" placeholder="Buscar produto, lote, receita...">
         </div>
-        <button class="icon-btn" id="btnAlertTop" title="Alertas">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <span class="alert-dot" id="topAlertDot" style="display:none;">0</span>
-        </button>
       </div>
 
       <div class="content">
@@ -464,11 +455,7 @@ tbody tr:hover{background:#FAFCFA;}
             <div class="kpi-grid" id="coKpiGrid" style="margin-bottom:0;"></div>
           </div>
 
-          <div class="grid-2" style="margin-bottom:18px;">
-            <div class="card">
-              <div class="card-head"><div class="card-title">Alertas inteligentes</div></div>
-              <div id="coAlertas"></div>
-            </div>
+          <div style="margin-bottom:18px;">
             <div class="card">
               <div class="card-head"><div class="card-title">Ordens de tratamento no período</div></div>
               <div id="coLotes" style="max-height:320px; overflow-y:auto;"></div>
@@ -609,10 +596,6 @@ tbody tr:hover{background:#FAFCFA;}
           </div>
         </section>
 
-        <!-- ===== ALERTAS ===== -->
-        <section class="section" id="section-alertas">
-          <div id="alertasWrap"></div>
-        </section>
 
         <!-- ===== RELATÓRIOS ===== -->
         <section class="section" id="section-relatorios">
@@ -994,7 +977,7 @@ function applyRolePermissions(){
 ========================================================= */
 const sectionTitles = {
   centro:'Centro de Operações', produtos:'Produtos', movimentacoes:'Movimentações',
-  receitas:'Receitas', lotes:'Tratamento de Lotes', alertas:'Alertas',
+  receitas:'Receitas', lotes:'Tratamento de Lotes',
   relatorios:'Relatórios', usuarios:'Usuários'
 };
 document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
@@ -1022,9 +1005,6 @@ document.getElementById('sidebarOverlay').addEventListener('click', ()=>{
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('open');
 });
-document.getElementById('btnAlertTop').addEventListener('click', ()=>{
-  document.querySelector('.nav-item[data-section="alertas"]').click();
-});
 
 /* =========================================================
    FIRESTORE LISTENERS
@@ -1032,7 +1012,7 @@ document.getElementById('btnAlertTop').addEventListener('click', ()=>{
 function initListeners(){
   unsubs.push(db.collection('produtos').onSnapshot(snap=>{
     produtos = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderProdutos(); renderDashboard(); renderAlertas(); fillProdutoSelects(); renderCentroOperacoes();
+    renderProdutos(); renderDashboard(); fillProdutoSelects(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('movimentacoes').orderBy('criadoEm','desc').onSnapshot(snap=>{
     movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -1060,42 +1040,7 @@ function initListeners(){
 /* =========================================================
    DASHBOARD
 ========================================================= */
-/* Lista única de alertas (só o que dá para comprovar com dado real).
-   Usada pelo Centro de Operações e pelo contador do sino/menu. */
-function getAlertasInteligentes(){
-  const alertas = [];
-  produtos.forEach(p=>{
-    const d = daysUntil(p.validade);
-    if(d!==null && d<0) alertas.push({sev:'critico', texto:`${p.nome} está vencido`, nav:'produtos'});
-    else if(d!==null && d<=30) alertas.push({sev:'atencao', texto:`${p.nome} vence em ${d} dia(s)`, nav:'produtos'});
-  });
-  produtos.forEach(p=>{
-    if(Number(p.quantidade) <= Number(p.estoqueMinimo||0))
-      alertas.push({sev:'atencao', texto:`${p.nome} abaixo do estoque mínimo (${fmtNum(p.quantidade)} ${p.unidade})`, nav:'produtos'});
-  });
-  receitas.forEach(r=>{
-    (r.itens||[]).forEach(i=>{
-      const temEstoque = candidatosParaItem(i).some(c=>Number(c.quantidade)>0);
-      if(!temEstoque) alertas.push({sev:'critico', texto:`Receita "${r.nome}" sem nenhum produto em estoque para ${i.produtoNome}`, nav:'receitas'});
-    });
-  });
-  const LIMITE_DIAS_PARADO = 60;
-  produtos.forEach(p=>{
-    const movsProduto = movimentacoes.filter(m=>m.produtoId===p.id && m.data);
-    if(!movsProduto.length) return;
-    const ultima = movsProduto.reduce((max,m)=> m.data>max?m.data:max, movsProduto[0].data);
-    const dias = Math.floor((new Date() - parseLocalDate(ultima))/86400000);
-    if(dias>LIMITE_DIAS_PARADO) alertas.push({sev:'atencao', texto:`${p.nome} sem movimentação há ${dias} dias`, nav:'movimentacoes'});
-  });
-  return alertas;
-}
-function updateAlertBadges(){
-  const n = getAlertasInteligentes().length;
-  const nav = document.getElementById('navAlertBadge'), dot = document.getElementById('topAlertDot');
-  if(!nav || !dot) return;
-  nav.style.display = n ? 'inline-flex' : 'none'; nav.textContent = n;
-  dot.style.display = n ? 'flex' : 'none'; dot.textContent = n;
-}
+function updateAlertBadges(){} // alertas removidos do sistema
 /* ---- Consumo: litros e quilos NUNCA são somados entre si ---- */
 function toLitrosKg(qtd, unidade){
   const q = Number(qtd)||0;
@@ -1265,14 +1210,6 @@ function renderCentroOperacoes(){
       <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div></div>
     </div>`).join('');
 
-  // Alertas inteligentes — mesma lista que alimenta o sino do topo
-  const alertas = getAlertasInteligentes();
-  document.getElementById('coAlertas').innerHTML = alertas.length ? alertas.slice(0,30).map(a=>`
-    <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
-      <span class="badge ${a.sev==='critico'?'badge-danger':'badge-warn'}">${a.sev==='critico'?'Crítico':'Atenção'}</span>
-      <span style="flex:1;">${esc(a.texto)}</span>
-      <button class="btn btn-ghost btn-sm" onclick="resolverAlerta('${a.nav}')">Resolver</button>
-    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum alerta no momento — tudo sob controle.</p>';
 
   // Ordens de tratamento no período
   document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
@@ -1376,10 +1313,6 @@ function verProdutoNoCentro(id){
   document.querySelector('.nav-item[data-section="produtos"]').click();
   const produto = produtos.find(p=>p.id===id);
   if(produto){ document.getElementById('globalSearch').value = produto.nome; renderProdutos(); }
-}
-function resolverAlerta(nav){
-  const item = document.querySelector(`.nav-item[data-section="${nav}"]`);
-  if(item) item.click();
 }
 ['coPeriodo','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
   document.getElementById(id).addEventListener('change', renderCentroOperacoes);
@@ -2067,30 +2000,6 @@ function verLote(id){
   alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg\n\nConsumo:\n' + linhas.join('\n'));
 }
 
-/* =========================================================
-   ALERTAS
-========================================================= */
-function renderAlertas(){
-  const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
-  const venc30 = produtos.filter(p=> { const d=daysUntil(p.validade); return d!==null && d>=0 && d<=30; });
-  const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
-  function block(title, list, cls, empty, modo){
-    const detalhe = p => modo==='validade'
-      ? 'Validade: '+fmtDate(p.validade)+' ('+(daysUntil(p.validade)<0?'vencido':daysUntil(p.validade)+' dia(s)')+')'
-      : 'Estoque: '+fmtNum(p.quantidade)+' '+p.unidade+' / mín. '+fmtNum(p.estoqueMinimo);
-    return `<div class="card" style="margin-bottom:16px;">
-      <div class="card-title" style="margin-bottom:12px;">${title} <span class="badge ${cls}" style="margin-left:8px;">${list.length}</span></div>
-      ${list.length ? list.map(p=>`<div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid #F0F2F1; font-size:13.5px;">
-        <span><b>${esc(p.nome)}</b> — ${esc(p.local||'sem local definido')}</span>
-        <span style="color:var(--text-mute);">${detalhe(p)}</span>
-      </div>`).join('') : `<p style="color:var(--text-mute); font-size:13px;">${empty}</p>`}
-    </div>`;
-  }
-  document.getElementById('alertasWrap').innerHTML =
-    block('Produtos vencidos', vencidos, 'badge-danger', 'Nenhum produto vencido.', 'validade') +
-    block('Vencendo em até 30 dias', venc30, 'badge-warn', 'Nenhum produto vencendo em breve.', 'validade') +
-    block('Abaixo do estoque mínimo', baixoMin, 'badge-warn', 'Todos os produtos estão com estoque adequado.', 'estoque');
-}
 
 /* =========================================================
    RELATÓRIOS
