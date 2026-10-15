@@ -596,6 +596,7 @@ tbody tr:hover{background:#FAFCFA;}
         <!-- ===== LOTES ===== -->
         <section class="section" id="section-lotes">
           <div class="toolbar">
+            <input type="search" id="buscaLotes" placeholder="Buscar N° da ordem, cultivar, receita, operador..." style="flex:1; min-width:220px; max-width:420px; padding:9px 12px; border:1.5px solid var(--border); border-radius:9px; font-size:13.5px;">
             <div class="grow"></div>
             <button class="btn btn-primary" id="btnNovoLote">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -1016,6 +1017,9 @@ document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
     document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
     document.getElementById('section-'+sec).classList.add('active');
     document.getElementById('pageTitle').textContent = sectionTitles[sec];
+    document.getElementById('globalSearch').value = '';
+    document.getElementById('buscaLotes').value = '';
+    if(typeof reRenderBuscas==='function') reRenderBuscas();
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('open');
     if(sec === 'relatorios') renderRelatorio('estoque');
@@ -1504,12 +1508,15 @@ function statusProduto(p){
   if(Number(p.quantidade) <= Number(p.estoqueMinimo||0)) return {label:'Estoque baixo', cls:'badge-warn'};
   return {label:'Normal', cls:'badge-ok'};
 }
+function normBusca(t){ return (t||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+function termoBusca(){ return normBusca(document.getElementById('globalSearch').value); }
+function reRenderBuscas(){ renderProdutos(); renderLotes(); renderMovimentacoes(); renderReceitas(); }
 let produtoCatFilter = 'todas';
 function renderProdutos(){
-  const term = document.getElementById('globalSearch').value.toLowerCase();
+  const term = termoBusca();
   const list = produtos.filter(p=>{
     const matchCat = produtoCatFilter==='todas' || p.categoria===produtoCatFilter;
-    const matchSearch = !term || (p.nome||'').toLowerCase().includes(term) || (p.lote||'').toLowerCase().includes(term);
+    const matchSearch = !term || normBusca(p.nome).includes(term) || normBusca(p.lote).includes(term) || normBusca(p.ingredienteAtivo).includes(term);
     return matchCat && matchSearch;
   });
   document.getElementById('emptyProdutos').style.display = list.length ? 'none' : 'block';
@@ -1543,7 +1550,7 @@ document.querySelectorAll('.chip-filter[data-filter-cat]').forEach(el=>{
     renderProdutos();
   });
 });
-document.getElementById('globalSearch').addEventListener('input', ()=>{ renderProdutos(); });
+document.getElementById('globalSearch').addEventListener('input', reRenderBuscas);
 
 function fillProdutoSelects(){
   const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${fmtNum(p.quantidade)} ${esc(p.unidade)})</option>`).join('');
@@ -1599,7 +1606,9 @@ document.querySelectorAll('.chip-filter[data-mov-filter]').forEach(el=>{
   });
 });
 function renderMovimentacoes(){
-  const list = movimentacoes.filter(m=> movFilter==='todas' || m.tipo===movFilter);
+  const termo = termoBusca();
+  const list = movimentacoes.filter(m=> (movFilter==='todas' || m.tipo===movFilter) &&
+    (!termo || [m.produtoNome, m.motivo, m.responsavel, m.observacoes, fmtDate(m.data)].some(v=>normBusca(v).includes(termo))));
   document.getElementById('emptyMov').style.display = list.length ? 'none' : 'block';
   document.getElementById('tblMovimentacoes').innerHTML = list.map(m=>`
     <tr>
@@ -1730,8 +1739,10 @@ document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
   promise.then(()=>{ closeModal('modalReceita'); toast('Receita salva'); })
     .catch(()=>toast('Erro ao salvar receita', true));
 });
-function receitasOrdenadas(){
-  return [...receitas].sort((a,b)=> nomeCurtoReceita(a.nome).localeCompare(nomeCurtoReceita(b.nome),'pt-BR',{numeric:true,sensitivity:'base'}));
+function receitasOrdenadas(todas){
+  const termo = todas ? '' : termoBusca();
+  const base = !termo ? receitas : receitas.filter(r=> normBusca(r.nome).includes(termo) || (r.itens||[]).some(i=>normBusca(i.produtoNome).includes(termo)));
+  return [...base].sort((a,b)=> nomeCurtoReceita(a.nome).localeCompare(nomeCurtoReceita(b.nome),'pt-BR',{numeric:true,sensitivity:'base'}));
 }
 function renderReceitas(){
   document.getElementById('emptyReceitas').style.display = receitas.length ? 'none' : 'block';
@@ -1921,7 +1932,7 @@ function nomeCurtoReceita(n){ return (n||'').replace(/^\s*TSI\s+/i,'').trim(); }
 function fillReceitaSelect(){
   const sel = document.getElementById('lReceita');
   const anterior = sel.value;
-  const ordenadas = receitasOrdenadas();
+  const ordenadas = receitasOrdenadas(true);
   sel.innerHTML = ordenadas.map(r=>`<option value="${r.id}">${esc(nomeCurtoReceita(r.nome))}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
   if(anterior && ordenadas.some(r=>r.id===anterior)) sel.value = anterior;
 }
@@ -2061,9 +2072,18 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   batch.commit().then(()=>{ closeModal('modalLote'); toast('Lote tratado e estoque atualizado'); })
     .catch(()=> toast('Erro ao salvar tratamento do lote', true));
 });
+function lotesFiltrados(){
+  const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
+  if(!termo) return lotes;
+  return lotes.filter(l=> [l.numeroLote, l.cultivar, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
+}
+document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes());
 function renderLotes(){
-  document.getElementById('emptyLotes').style.display = lotes.length ? 'none' : 'block';
-  document.getElementById('tblLotes').innerHTML = lotes.map(l=>`
+  const lista = lotesFiltrados();
+  const vazio = document.getElementById('emptyLotes');
+  vazio.style.display = lista.length ? 'none' : 'block';
+  vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhum lote tratado ainda.';
+  document.getElementById('tblLotes').innerHTML = lista.map(l=>`
     <tr>
       <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
       <td>${fmtNum(l.quantidadeSementes)}</td><td><b>${fmtNum(l.sobraKg||0)}</b></td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
