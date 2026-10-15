@@ -776,17 +776,6 @@ tbody tr:hover{background:#FAFCFA;}
       <div class="form-grid">
         <div class="field"><label>Cultivar</label>
           <select id="lCultivar">
-            <option value="Zeus">Zeus (55I57RSF IPRO)</option>
-            <option value="Orion">Orion (55IX56RSF I2X)</option>
-            <option value="Titanium">Titanium (56IX58RSF I2X)</option>
-            <option value="Torque">Torque (57IX60RSF I2X)</option>
-            <option value="Grafeno">Grafeno (57K56RSF CE)</option>
-            <option value="Vênus">Vênus (57K58RSF CE)</option>
-            <option value="Raça">Raça (63E66RSF E)</option>
-            <option value="Fibra">Fibra (64I61RSF IPRO)</option>
-            <option value="Nexus">Nexus (64IX66RSF I2X)</option>
-            <option value="Raio">Raio (50I52RSF IPRO)</option>
-            <option value="Imune">Imune (53IX55RSF I2X)</option>
             <option value="Ativa">Ativa (BMX ATIVA RR)</option>
             <option value="C2530RR">C2530 · Roundup Ready</option>
             <option value="C2535CE">C2535 · Conkesta E3</option>
@@ -795,6 +784,17 @@ tbody tr:hover{background:#FAFCFA;}
             <option value="C2575E">C2575 · Enlist E3</option>
             <option value="C2605E">C2605 · Enlist E3</option>
             <option value="C2645CE">C2645 · Conkesta E3</option>
+            <option value="Fibra">Fibra (64I61RSF IPRO)</option>
+            <option value="Grafeno">Grafeno (57K56RSF CE)</option>
+            <option value="Imune">Imune (53IX55RSF I2X)</option>
+            <option value="Nexus">Nexus (64IX66RSF I2X)</option>
+            <option value="Orion">Orion (55IX56RSF I2X)</option>
+            <option value="Raça">Raça (63E66RSF E)</option>
+            <option value="Raio">Raio (50I52RSF IPRO)</option>
+            <option value="Titanium">Titanium (56IX58RSF I2X)</option>
+            <option value="Torque">Torque (57IX60RSF I2X)</option>
+            <option value="Vênus">Vênus (57K58RSF CE)</option>
+            <option value="Zeus">Zeus (55I57RSF IPRO)</option>
             <option value="Outro">Outro (digitar manualmente)</option>
           </select>
           <input id="lCultivarManual" placeholder="Digite o nome do cultivar" style="display:none; margin-top:8px;">
@@ -1914,8 +1914,13 @@ document.getElementById('btnConfirmZerar').addEventListener('click', async ()=>{
   }
   btn.textContent = 'Apagar tudo';
 });
+function nomeCurtoReceita(n){ return (n||'').replace(/^\s*TSI\s+/i,'').trim(); }
 function fillReceitaSelect(){
-  document.getElementById('lReceita').innerHTML = receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
+  const sel = document.getElementById('lReceita');
+  const anterior = sel.value;
+  const ordenadas = [...receitas].sort((a,b)=> nomeCurtoReceita(a.nome).localeCompare(nomeCurtoReceita(b.nome),'pt-BR',{numeric:true,sensitivity:'base'}));
+  sel.innerHTML = ordenadas.map(r=>`<option value="${r.id}">${esc(nomeCurtoReceita(r.nome))}</option>`).join('') || '<option value="">Cadastre uma receita primeiro</option>';
+  if(anterior && ordenadas.some(r=>r.id===anterior)) sel.value = anterior;
 }
 
 /* =========================================================
