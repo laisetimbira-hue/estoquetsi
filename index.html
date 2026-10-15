@@ -372,10 +372,6 @@ tbody tr:hover{background:#FAFCFA;}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
           Centro de Operações
         </div>
-        <div class="nav-item" data-section="dashboard">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-          Dashboard
-        </div>
 
         <div class="nav-label">Operação</div>
         <div class="nav-item" data-section="produtos">
@@ -513,25 +509,6 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="card">
             <div class="card-head"><div class="card-title">Linha do tempo da operação</div></div>
             <div id="coTimeline" style="max-height:400px; overflow-y:auto;"></div>
-          </div>
-        </section>
-
-        <!-- ===== DASHBOARD ===== -->
-        <section class="section" id="section-dashboard">
-          <div class="kpi-grid" id="kpiGrid"></div>
-          <div class="grid-2">
-            <div class="card">
-              <div class="card-head"><div class="card-title">Consumo mensal (litros e kg)</div></div>
-              <canvas id="chartConsumo" height="140"></canvas>
-            </div>
-            <div class="card">
-              <div class="card-head"><div class="card-title">Produtos por categoria</div></div>
-              <canvas id="chartCategoria" height="140"></canvas>
-            </div>
-          </div>
-          <div class="card" style="margin-top:18px;">
-            <div class="card-head"><div class="card-title">Últimas movimentações</div></div>
-            <div id="dashRecentMov"></div>
           </div>
         </section>
 
@@ -1015,7 +992,7 @@ function applyRolePermissions(){
    NAVIGATION
 ========================================================= */
 const sectionTitles = {
-  centro:'Centro de Operações', dashboard:'Dashboard', produtos:'Produtos', movimentacoes:'Movimentações',
+  centro:'Centro de Operações', produtos:'Produtos', movimentacoes:'Movimentações',
   receitas:'Receitas', lotes:'Tratamento de Lotes', alertas:'Alertas',
   relatorios:'Relatórios', usuarios:'Usuários'
 };
@@ -1161,72 +1138,7 @@ function ringSvg(pct, color){
   const offset = c - (Math.min(pct,100)/100)*c;
   return `<svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="${r}"/><circle class="fg" cx="26" cy="26" r="${r}" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"/></svg>`;
 }
-function renderDashboard(){
-  const qtdProdutos = produtos.length;
-  const vencidos = produtos.filter(p=> daysUntil(p.validade) !== null && daysUntil(p.validade) < 0);
-  const venc30 = produtos.filter(p=> { const d = daysUntil(p.validade); return d !== null && d >= 0 && d <= 30; });
-  const baixoMin = produtos.filter(p=> Number(p.quantidade) <= Number(p.estoqueMinimo||0));
-  const hoje = new Date();
-  const consumoMes = somaLitrosKg(movimentacoes.filter(m=>{
-    if(m.tipo !== 'saida' || !m.data) return false;
-    const d = parseLocalDate(m.data);
-    return d.getMonth()===hoje.getMonth() && d.getFullYear()===hoje.getFullYear();
-  }));
-
-  const cards = [
-    {label:'Produtos cadastrados', value: qtdProdutos, icon:'box', color:'var(--green)', pct:100},
-    {label:'Vence em 30 dias', value: venc30.length, icon:'clock', color:'var(--warn)', pct: qtdProdutos?Math.round(venc30.length/qtdProdutos*100):0, cls: venc30.length?'warn':''},
-    {label:'Produtos vencidos', value: vencidos.length, icon:'alert', color:'var(--danger)', pct: qtdProdutos?Math.round(vencidos.length/qtdProdutos*100):0, cls: vencidos.length?'danger':''},
-    {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--danger)', pct: qtdProdutos?Math.round(baixoMin.length/qtdProdutos*100):0, cls: baixoMin.length?'danger':''},
-    {label:'Consumo no mês', value: fmtLitrosKg(consumoMes.l, consumoMes.kg), icon:'consumo', color:'var(--green)', pct:100},
-  ];
-  const icons = {
-    money:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-    box:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73Z"/><path d="M3.3 7 12 12l8.7-5"/>',
-    clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
-    alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/>',
-    trend:'<path d="M22 17 13.5 8.5 8.5 13.5 2 7"/><path d="M16 17h6v-6"/>',
-    consumo:'<path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/>'
-  };
-  document.getElementById('kpiGrid').innerHTML = cards.map(c=>`
-    <div class="kpi-card">
-      <div class="kpi-ring">${ringSvg(c.pct, c.color)}<div class="kpi-ring-icon" style="color:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[c.icon]}</svg></div></div>
-      <div class="kpi-body"><div class="kpi-label">${c.label}</div><div class="kpi-value ${c.cls||''}">${c.value}</div></div>
-    </div>`).join('');
-
-  updateAlertBadges();
-
-  // consumo mensal últimos 6 meses
-  const months = [];
-  for(let i=5;i>=0;i--){ const d = new Date(); d.setMonth(d.getMonth()-i); months.push({label:d.toLocaleDateString('pt-BR',{month:'short'}), m:d.getMonth(), y:d.getFullYear()}); }
-  const movsPorMes = months.map(mo => somaLitrosKg(movimentacoes.filter(m=>{
-    if(m.tipo!=='saida' || !m.data) return false;
-    const d = parseLocalDate(m.data);
-    return d.getMonth()===mo.m && d.getFullYear()===mo.y;
-  })));
-  if(chartConsumo) chartConsumo.destroy();
-  chartConsumo = new Chart(document.getElementById('chartConsumo'),
-    consumoChartConfig(months.map(m=>m.label), movsPorMes.map(x=>+x.l.toFixed(2)), movsPorMes.map(x=>+x.kg.toFixed(2)), 36));
-
-  const catMap = {};
-  produtos.forEach(p=>{ catMap[p.categoria || 'Outro'] = (catMap[p.categoria || 'Outro']||0) + 1; });
-  if(chartCategoria) chartCategoria.destroy();
-  chartCategoria = new Chart(document.getElementById('chartCategoria'), {
-    type:'doughnut',
-    data:{ labels:Object.keys(catMap), datasets:[{ data:Object.values(catMap), backgroundColor:['#2E7D4F','#1B4332','#7FB88F','#E2A93B','#8A9691','#4C8F68','#D64545'] }]},
-    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}} }
-  });
-
-  const recent = movimentacoes.slice(0,6);
-  document.getElementById('dashRecentMov').innerHTML = recent.length ? recent.map(m=>`
-    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:10px 0; border-bottom:1px solid #F0F2F1;">
-      <span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span>
-      <span style="font-weight:600; font-size:13.5px;">${esc(m.produtoNome)}</span>
-      <span style="color:var(--text-mute); font-size:12.5px;">${esc(m.motivo)}</span>
-      <span style="margin-left:auto; font-weight:700; font-size:13px;">${fmtNum(m.quantidade)}</span>
-      <span style="color:var(--text-mute); font-size:12px; min-width:80px; text-align:right;">${fmtDate(m.data)}</span>
-    </div>`).join('') : '<div class="empty-state"><p>Sem movimentações recentes.</p></div>';
-}
+function renderDashboard(){ updateAlertBadges(); } // tela Dashboard removida; mantém só o contador de alertas
 
 /* =========================================================
    CENTRO DE OPERAÇÕES — página inicial, só com dados reais
