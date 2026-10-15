@@ -470,7 +470,7 @@ tbody tr:hover{background:#FAFCFA;}
               <div id="coAlertas"></div>
             </div>
             <div class="card">
-              <div class="card-head"><div class="card-title">Lotes tratados no período</div></div>
+              <div class="card-head"><div class="card-title">Ordens de tratamento no período</div></div>
               <div id="coLotes" style="max-height:320px; overflow-y:auto;"></div>
             </div>
           </div>
@@ -605,7 +605,7 @@ tbody tr:hover{background:#FAFCFA;}
               </tr></thead>
               <tbody id="tblLotes"></tbody>
             </table>
-            <div class="empty-state" id="emptyLotes" style="display:none;"><p>Nenhum lote tratado ainda.</p></div>
+            <div class="empty-state" id="emptyLotes" style="display:none;"><p>Nenhuma ordem de tratamento ainda.</p></div>
           </div>
         </section>
 
@@ -1253,7 +1253,7 @@ function renderCentroOperacoes(){
     {label:'Produtos cadastrados', value: produtos.length, icon:'box', color:'var(--green)'},
     {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--green)', cls: baixoMin.length?'danger':''},
     {label:'Vencendo em 30 dias', value: venc30.length, icon:'clock', color:'var(--green)', cls: venc30.length?'warn':''},
-    {label:'Lotes tratados no período', value: lotesF.length, icon:'seed', color:'var(--green)'},
+    {label:'Ordens de tratamento no período', value: lotesF.length, icon:'seed', color:'var(--green)'},
     {label:'Sementes tratadas (kg)', value: sementesTratadas.toLocaleString('pt-BR'), icon:'seed', color:'var(--green)'},
     {label:'Movimentações no período', value: movsF.length, icon:'consumo', color:'var(--green)'},
     {label:'Operadores em atividade', value: operadoresAtivos.size, icon:'user', color:'var(--green)'},
@@ -1274,12 +1274,12 @@ function renderCentroOperacoes(){
       <button class="btn btn-ghost btn-sm" onclick="resolverAlerta('${a.nav}')">Resolver</button>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum alerta no momento — tudo sob controle.</p>';
 
-  // Lotes tratados no período
+  // Ordens de tratamento no período
   document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
     <div style="padding:10px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
       <div style="display:flex; justify-content:space-between;"><b>${esc(l.cultivar)}</b><span style="color:var(--text-mute); font-size:12px;">${l.criadoEm ? new Date(l.criadoEm.seconds*1000).toLocaleString('pt-BR') : fmtDate(l.data)}</span></div>
       <div style="color:var(--text-soft); font-size:12.5px;">Ordem ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg</div>
-    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhum lote tratado nesse período.</p>';
+    </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma ordem de tratamento nesse período.</p>';
 
   // Consumo de produtos (por dia, dentro do período filtrado)
   const range = periodoRange(getCoFiltros().periodo);
@@ -1818,7 +1818,7 @@ document.getElementById('btnZerarDados').addEventListener('click', ()=>{
     ${semReceitas ? `<p style="font-size:13px; color:var(--danger); margin-bottom:10px;">Nenhuma receita cadastrada. Importe as receitas primeiro, senão todos os produtos seriam apagados.</p>`:''}
     <ul style="font-size:13.5px; margin:0 0 12px 18px; line-height:1.7;">
       <li>Apagar <b>${pl.movs.length}</b> movimentações</li>
-      <li>Apagar <b>${pl.lotes.length}</b> lotes tratados</li>
+      <li>Apagar <b>${pl.lotes.length}</b> ordens de tratamento</li>
       <li>Apagar <b>${pl.apagarProd.length}</b> produtos que não estão em nenhuma receita${pl.apagarProd.length?': <span style="color:var(--text-soft);">'+pl.apagarProd.slice(0,12).map(p=>esc(p.nome)).join(', ')+(pl.apagarProd.length>12?'…':'')+'</span>':''}</li>
       <li>Zerar o saldo de <b>${pl.manter.length}</b> produtos usados nas receitas (eles ficam cadastrados)</li>
       <li>Manter as <b>${receitas.length}</b> receitas</li>
@@ -1997,7 +1997,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
   });
-  batch.commit().then(()=>{ closeModal('modalLote'); toast('Lote tratado e estoque atualizado'); })
+  batch.commit().then(()=>{ closeModal('modalLote'); toast('Ordem registrada e estoque atualizado'); })
     .catch(()=> toast('Erro ao salvar tratamento do lote', true));
 });
 function lotesBuscados(){
@@ -2012,7 +2012,7 @@ function renderLotes(){
   const lista = lotesBuscados().slice().sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
   const vazio = document.getElementById('emptyLotes');
   vazio.style.display = lista.length ? 'none' : 'block';
-  vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhum lote tratado ainda.';
+  vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhuma ordem de tratamento ainda.';
   document.getElementById('tblLotes').innerHTML = lista.map(l=>`
     <tr>
       <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
@@ -2152,7 +2152,7 @@ function renderRelatorio(key){
     body.innerHTML = g.map(x=>`<tr><td>${esc(x.tsi)}</td><td>${esc(x.cultivar)}</td><td>${x.ordens}</td><td>${fmtNum(x.tratado)}</td><td>${fmtNum(+x.sobra.toFixed(2))}</td><td>${x.tratado?fmtNum(+(x.sobra/x.tratado*100).toFixed(1)):'0'}%</td></tr>`).join('');
   }
   else if(key==='consumo-lote'){
-    resumo.innerHTML = `<b>Lotes tratados:</b> ${lotes.length}`;
+    resumo.innerHTML = `<b>Ordens de tratamento:</b> ${lotes.length}`;
     head.innerHTML = '<tr><th>N° da ordem</th><th>Cultivar</th><th>Sementes (kg)</th><th>Sobra (kg)</th><th>Receita</th><th>Itens consumidos</th></tr>';
     body.innerHTML = lotes.map(l=>`<tr><td>${esc(l.numeroLote)}</td><td>${esc(l.cultivar)}</td><td>${fmtNum(l.quantidadeSementes)}</td><td>${fmtNum(l.sobraKg||0)}</td><td>${esc(l.receitaNome)}</td><td>${(l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade).join(', ')}</td></tr>`).join('');
   }
