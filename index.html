@@ -1012,7 +1012,7 @@ document.getElementById('sidebarOverlay').addEventListener('click', ()=>{
 function initListeners(){
   unsubs.push(db.collection('produtos').onSnapshot(snap=>{
     produtos = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderProdutos(); renderDashboard(); fillProdutoSelects(); renderCentroOperacoes();
+    renderProdutos(); renderDashboard(); fillProdutoSelects(); renderReceitas(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('movimentacoes').orderBy('criadoEm','desc').onSnapshot(snap=>{
     movimentacoes = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -1627,7 +1627,7 @@ function renderReceitas(){
         <div style="display:flex; justify-content:space-between;">
           <span>${esc(i.produtoNome)}</span><b>${fmtNum(getDoseItem(i))} ${doseLabel(unidadeDoItem(i))}</b>
         </div>
-        ${i.ingredienteAtivo ? `<div style="font-size:11px; color:var(--text-mute);">Aceita outro produto com o mesmo ingrediente ativo (${esc(i.ingredienteAtivo)})</div>` : `<div style="font-size:11px; color:var(--warn-text);">Sem ingrediente ativo — sem substituição automática</div>`}
+        ${ingredienteDoItem(i) ? `<div style="font-size:11px; color:var(--text-mute);">Aceita outro produto com o mesmo ingrediente ativo (${esc(ingredienteDoItem(i))})</div>` : `<div style="font-size:11px; color:var(--warn-text);">Sem ingrediente ativo — sem substituição automática</div>`}
       </div>`).join('')}
       ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn-text); margin-top:8px;">⚠ Receita antiga — a dose foi convertida automaticamente. Confira e salve novamente.</p>' : ''}
       ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
@@ -1824,9 +1824,15 @@ function getCultivarSelecionado(){
   return sel==='Outro' ? document.getElementById('lCultivarManual').value.trim() : sel;
 }
 function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
+/* Ingrediente ativo do item da receita: sempre o ATUAL do produto cadastrado
+   (a cópia gravada na receita pode estar velha); só usa a cópia se o produto não for achado. */
+function ingredienteDoItem(item){
+  const ref = produtoDoItem(item);
+  return ref ? (ref.ingredienteAtivo||'') : (item.ingredienteAtivo||'');
+}
 function candidatosParaItem(item){
   const ref = produtoDoItem(item);
-  const ingrediente = normalizeTxt(item.ingredienteAtivo || (ref?ref.ingredienteAtivo:''));
+  const ingrediente = normalizeTxt(ingredienteDoItem(item));
   // substituto precisa ser da mesma família (kg com kg; L/mL com L/mL), senão a dose (g/kg x mL/kg) não faz sentido
   const familia = familiaUnidade(unidadeDoItem(item));
   let candidatos = ingrediente
