@@ -320,6 +320,10 @@ tbody tr:hover{background:#FAFCFA;}
   .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:39;}
   .sidebar-overlay.open{display:block;}
 }
+.sobra-box summary::-webkit-details-marker{ display:none; }
+.sobra-box .sobra-chevron{ transition:transform .15s; flex-shrink:0; color:var(--text-soft); }
+.sobra-box[open] .sobra-chevron{ transform:rotate(90deg); }
+@media print{ .sobra-box{ display:none !important; } }
 </style>
 </head>
 <body>
@@ -603,13 +607,19 @@ tbody tr:hover{background:#FAFCFA;}
               Tratar novo lote
             </button>
           </div>
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-head" style="margin-bottom:8px;"><div class="card-title">Sobra de semente tratada por TSI e cultivar</div></div>
-            <div class="table-wrap" style="border:none;"><table>
-              <thead><tr><th>TSI (receita)</th><th>Cultivar</th><th>Ordens</th><th>Tratado (kg)</th><th>Sobra (kg)</th><th>% sobra</th></tr></thead>
-              <tbody id="tblSobraResumo"></tbody>
-            </table></div>
-          </div>
+          <details class="card sobra-box" id="sobraBox" style="margin-bottom:16px; padding:0;">
+            <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; padding:14px 18px;">
+              <svg class="sobra-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+              <span class="card-title" style="margin:0;">Sobra de semente tratada por TSI e cultivar</span>
+              <span id="sobraTotalResumo" style="margin-left:auto; font-size:13px; color:var(--text-soft); white-space:nowrap;"></span>
+            </summary>
+            <div style="padding:0 18px 14px;">
+              <div class="table-wrap" style="border:none;"><table>
+                <thead><tr><th>TSI (receita)</th><th>Cultivar</th><th>Ordens</th><th>Tratado (kg)</th><th>Sobra (kg)</th><th>% sobra</th></tr></thead>
+                <tbody id="tblSobraResumo"></tbody>
+              </table></div>
+            </div>
+          </details>
           <div class="table-wrap">
             <table>
               <thead><tr>
@@ -2107,6 +2117,8 @@ function sobraAgrupada(){
 function renderSobraResumo(){
   const g = sobraAgrupada();
   const tb = document.getElementById('tblSobraResumo');
+  const totalGeral = g.reduce((a,x)=>a+x.sobra,0);
+  document.getElementById('sobraTotalResumo').textContent = g.length ? 'Total: '+fmtNum(+totalGeral.toFixed(2))+' kg' : 'Nenhuma sobra informada';
   if(!g.length){ tb.innerHTML = '<tr><td colspan="6" style="color:var(--text-mute);">Nenhuma sobra informada ainda. Use o lápis na linha da ordem para informar.</td></tr>'; return; }
   const tot = g.reduce((a,x)=>({tratado:a.tratado+x.tratado, sobra:a.sobra+x.sobra}),{tratado:0,sobra:0});
   tb.innerHTML = g.map(x=>`<tr><td>${esc(x.tsi)}</td><td><b>${esc(x.cultivar)}</b></td><td>${x.ordens}</td><td>${fmtNum(x.tratado)}</td><td><b>${fmtNum(+x.sobra.toFixed(2))}</b></td><td>${x.tratado?fmtNum(+(x.sobra/x.tratado*100).toFixed(1)):'0'}%</td></tr>`).join('')
