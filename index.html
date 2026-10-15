@@ -16,8 +16,10 @@
 
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>window.Chart || document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>');</script>
 <!-- SheetJS (Excel export) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');</script>
 
 <style>
 :root{
@@ -1215,19 +1217,32 @@ function renderCentroOperacoes(){
     const diaStr = toISOLocal(d);
     return somaLitrosKg(movsF.filter(m=>m.tipo==='saida' && m.data===diaStr));
   });
-  if(chartCoConsumo) chartCoConsumo.destroy();
-  chartCoConsumo = new Chart(document.getElementById('chartCoConsumo'),
-    consumoChartConfig(dias.map(d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), consumoPorDia.map(x=>+x.l.toFixed(2)), consumoPorDia.map(x=>+x.kg.toFixed(2)), 28));
+  // Gráficos: se a biblioteca não carregar (rede bloqueada) ou der erro, o resto da tela continua funcionando
+  try {
+    if(typeof Chart==='undefined') throw new Error('Chart.js não carregou');
+    if(chartCoConsumo) chartCoConsumo.destroy();
+    chartCoConsumo = new Chart(document.getElementById('chartCoConsumo'),
+      consumoChartConfig(dias.map(d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})), consumoPorDia.map(x=>+x.l.toFixed(2)), consumoPorDia.map(x=>+x.kg.toFixed(2)), 28));
 
-  // Consumo por cultivar (kg de sementes tratadas)
-  const porCultivar = {};
-  lotesF.forEach(l=>{ porCultivar[l.cultivar] = (porCultivar[l.cultivar]||0) + (Number(l.quantidadeSementes)||0); });
-  if(chartCoCultivar) chartCoCultivar.destroy();
-  chartCoCultivar = new Chart(document.getElementById('chartCoCultivar'), {
-    type:'bar',
-    data:{ labels:Object.keys(porCultivar), datasets:[{ data:Object.values(porCultivar), backgroundColor:'#2E7D4F', borderRadius:6 }]},
-    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'#EEF1EF'}}, y:{grid:{display:false}} } }
-  });
+    // Consumo por cultivar (kg de sementes tratadas)
+    const porCultivar = {};
+    lotesF.forEach(l=>{ porCultivar[l.cultivar] = (porCultivar[l.cultivar]||0) + (Number(l.quantidadeSementes)||0); });
+    if(chartCoCultivar) chartCoCultivar.destroy();
+    chartCoCultivar = new Chart(document.getElementById('chartCoCultivar'), {
+      type:'bar',
+      data:{ labels:Object.keys(porCultivar), datasets:[{ data:Object.values(porCultivar), backgroundColor:'#2E7D4F', borderRadius:6 }]},
+      options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'#EEF1EF'}}, y:{grid:{display:false}} } }
+    });
+
+  } catch(e){
+    console.error('Gráficos do Centro:', e);
+    ['chartCoConsumo','chartCoCultivar'].forEach(id=>{
+      const c=document.getElementById(id); if(!c) return;
+      let aviso=c.parentElement.querySelector('.aviso-grafico');
+      if(!aviso){ aviso=document.createElement('p'); aviso.className='aviso-grafico'; aviso.style.cssText='color:var(--text-mute); font-size:13px;'; c.parentElement.appendChild(aviso); }
+      aviso.textContent='Gráfico indisponível (a biblioteca de gráficos não carregou). Atualize a página com Ctrl+Shift+R.';
+    });
+  }
 
   // Últimas movimentações (até 20, respeitando filtros)
   const ultimasMovs = movsF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).slice(0,20);
