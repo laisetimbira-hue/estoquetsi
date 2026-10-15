@@ -435,11 +435,11 @@ tbody tr:hover{background:#FAFCFA;}
         <!-- ===== CENTRO DE OPERAÇÕES ===== -->
         <section class="section active" id="section-centro">
           <div class="toolbar" style="margin-bottom:18px;">
-            <select class="chip-filter" id="coPeriodo" style="border:1.5px solid var(--border); background:var(--surface);">
-              <option value="hoje">Hoje</option>
+            <select class="chip-filter" id="coPeriodo" autocomplete="off" style="border:1.5px solid var(--border); background:var(--surface);">
+              <option value="hoje" selected>Hoje</option>
               <option value="ontem">Ontem</option>
               <option value="7d">Últimos 7 dias</option>
-              <option value="30d" selected>Últimos 30 dias</option>
+              <option value="30d">Últimos 30 dias</option>
               <option value="total">Total</option>
             </select>
             <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
@@ -1081,6 +1081,7 @@ function renderDashboard(){ updateAlertBadges(); } // tela Dashboard removida; m
    modelo de dados hoje; ficam para uma próxima etapa)
 ========================================================= */
 let chartCoConsumo = null, chartCoCultivar = null;
+document.getElementById('coPeriodo').value = 'hoje'; // sempre abre em "Hoje"
 function getCoFiltros(){
   return {
     periodo: document.getElementById('coPeriodo').value,
