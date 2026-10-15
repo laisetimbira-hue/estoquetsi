@@ -2089,7 +2089,9 @@ function lotesFiltrados(){
 }
 document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes());
 function renderLotes(){
-  const lista = lotesFiltrados();
+  // último lançado primeiro (criadoEm; sem criadoEm = acabou de ser lançado, vai pro topo; empate pela data)
+  const tsLote = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
+  const lista = lotesFiltrados().slice().sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
   const vazio = document.getElementById('emptyLotes');
   vazio.style.display = lista.length ? 'none' : 'block';
   vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhum lote tratado ainda.';
