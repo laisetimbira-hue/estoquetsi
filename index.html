@@ -983,7 +983,7 @@ document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('open');
     if(sec === 'relatorios') renderRelatorio('estoque');
-    if(sec === 'centro') renderCentroOperacoes();
+    if(sec === 'centro'){ document.getElementById('coPeriodo').value = 'hoje'; renderCentroOperacoes(); } // sempre entra em "Hoje"
   });
 });
 document.getElementById('btnMenuToggle').addEventListener('click', ()=>{
