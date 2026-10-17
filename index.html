@@ -717,6 +717,7 @@ tbody tr:hover{background:#FAFCFA;}
       <div class="field full" style="margin-top:14px;"><label>Produtos e dose por kg de sementes (mL/kg; pó secante em g/kg)</label>
         <div id="recipeItemsWrap"></div>
         <button class="btn btn-ghost btn-sm" id="btnAddRecipeItem" style="margin-top:6px;">+ Adicionar produto</button>
+        <button class="btn btn-ghost btn-sm" id="btnRestaurarReceita" style="margin-top:6px; display:none;" title="Preenche a lista com a composição da receita original (só salva quando você clicar em Salvar receita)">↺ Restaurar composição original</button>
       </div>
       <div class="field" style="margin-top:14px;"><label>Observações</label><textarea id="rObs" rows="2"></textarea></div>
     </div>
@@ -1456,7 +1457,7 @@ document.getElementById('btnNovaReceita').addEventListener('click', ()=>{
   document.getElementById('rObs').value = '';
   document.getElementById('recipeItemsWrap').innerHTML = '';
   addRecipeItemRow();
-  openModal('modalReceita');
+  document.getElementById('btnRestaurarReceita').style.display='none'; openModal('modalReceita');
 });
 function openReceitaModalEdit(id){
   const r = receitas.find(x=>x.id===id);
@@ -1468,6 +1469,7 @@ function openReceitaModalEdit(id){
   (r.itens||[]).forEach(item=> addRecipeItemRow(item));
   if(!r.itens || !r.itens.length) addRecipeItemRow();
   openModal('modalReceita');
+  document.getElementById('btnRestaurarReceita').style.display = receitaOriginalDe(r.nome) ? '' : 'none';
 }
 function duplicarReceita(id){
   const r = receitas.find(x=>x.id===id);
@@ -1478,9 +1480,25 @@ function duplicarReceita(id){
   document.getElementById('recipeItemsWrap').innerHTML = '';
   (r.itens||[]).forEach(item=> addRecipeItemRow(item));
   if(!r.itens || !r.itens.length) addRecipeItemRow();
-  openModal('modalReceita');
+  document.getElementById('btnRestaurarReceita').style.display='none'; openModal('modalReceita');
 }
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
+/* Restaurar composição original (lista da safra 2025/2026): só preenche o formulário, não grava nada */
+function receitaOriginalDe(nome){ return IMPORT_RECEITAS.find(r=>normNome(r[0])===normNome(nome)); }
+document.getElementById('btnRestaurarReceita').addEventListener('click', ()=>{
+  const orig = receitaOriginalDe(document.getElementById('rNome').value);
+  if(!orig){ toast('Esta receita não está na lista original', true); return; }
+  const faltando = [];
+  const itens = orig[1].map(([nome,dose])=>{
+    const prod = produtos.find(p=>normNome(p.nome)===normNome(nome));
+    if(!prod){ faltando.push(nome); return null; }
+    return {produtoId:prod.id, produtoNome:prod.nome, unidade:prod.unidade, dosePorKg:dose};
+  }).filter(Boolean);
+  if(!itens.length){ toast('Nenhum produto da receita original está cadastrado', true); return; }
+  document.getElementById('recipeItemsWrap').innerHTML = '';
+  itens.forEach(i=>addRecipeItemRow(i));
+  toast(faltando.length ? 'Restaurado, mas faltam no cadastro: '+faltando.join(', ')+'. Confira e salve.' : 'Composição original restaurada — confira e clique em Salvar receita', faltando.length>0);
+});
 /* ---- Dose da receita ----
    Produto em kg (pó secante) -> dose em g por kg de semente.
    Produto em L ou mL        -> dose em mL por kg de semente. */
