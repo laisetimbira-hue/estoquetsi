@@ -1549,7 +1549,20 @@ function addRecipeItemRow(existing){
   }
   selProduto.addEventListener('change', atualizaUnidadeDose);
   if(existing){
-    selProduto.value = existing.produtoId;
+    // acha o produto pelo código OU pelo nome (o código pode ter mudado se o produto foi recadastrado)
+    const prodAtual = produtoDoItem(existing);
+    selProduto.value = prodAtual ? prodAtual.id : existing.produtoId;
+    if(!selProduto.value || selProduto.selectedIndex < 0){
+      // produto não está mais no cadastro: mantém a linha (não perde na hora de salvar) e avisa
+      const op = document.createElement('option');
+      op.value = existing.produtoId || ('removido-'+normNome(existing.produtoNome||''));
+      op.textContent = (existing.produtoNome||'Produto') + ' (não cadastrado — troque ou cadastre)';
+      op.dataset.unidade = existing.unidade || 'L';
+      selProduto.appendChild(op); selProduto.value = op.value;
+      row.dataset.nomeOriginal = existing.produtoNome || '';
+      row.dataset.unidadeOriginal = existing.unidade || 'L';
+      row.dataset.ingredienteOriginal = existing.ingredienteAtivo || '';
+    }
     doseInput.value = getDoseItem(existing);
   }
   atualizaUnidadeDose();
@@ -1569,11 +1582,13 @@ document.getElementById('btnSalvarReceita').addEventListener('click', ()=>{
     const sel = row.querySelector('.ri-produto');
     const produto = produtos.find(p=>p.id===sel.value);
     return {
-      produtoId: sel.value, produtoNome: produto?produto.nome:'', unidade: produto?produto.unidade:'',
-      ingredienteAtivo: produto?produto.ingredienteAtivo||'':'',
+      produtoId: sel.value, produtoNome: produto?produto.nome:(row.dataset.nomeOriginal||''), unidade: produto?produto.unidade:(row.dataset.unidadeOriginal||''),
+      ingredienteAtivo: produto?produto.ingredienteAtivo||'':(row.dataset.ingredienteOriginal||''),
       dosePorKg: Number(row.querySelector('.ri-dose').value)||0
     };
   }).filter(i=>i.produtoId && i.dosePorKg>0);
+  const totalLinhas = document.querySelectorAll('#recipeItemsWrap .recipe-item-row').length;
+  if(itens.length < totalLinhas && !confirm((totalLinhas-itens.length)+' linha(s) sem produto ou sem dose NÃO serão salvas. Continuar?')) return;
   if(!itens.length){ toast('Adicione ao menos um produto com dose', true); return; }
   const dados = { nome, itens, observacoes: document.getElementById('rObs').value.trim() };
   const promise = editingReceitaId
