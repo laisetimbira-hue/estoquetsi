@@ -1486,6 +1486,33 @@ function duplicarReceita(id){
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
 /* Restaurar composição original (lista da safra 2025/2026): só preenche o formulário, não grava nada */
 function receitaOriginalDe(nome){ return IMPORT_RECEITAS.find(r=>normNome(r[0])===normNome(nome)); }
+function receitaDifereDoOriginal(r){
+  const orig = receitaOriginalDe(r.nome); if(!orig) return false;
+  const atuais = new Map((r.itens||[]).map(i=>[normNome(i.produtoNome), Number(getDoseItem(i))]));
+  return orig[1].length !== atuais.size || orig[1].some(([n,d])=> !atuais.has(normNome(n)) || atuais.get(normNome(n))!==d);
+}
+/* Restaura a receita original e SALVA (pede confirmação). Produto que não existir no cadastro é criado com saldo zero. */
+function restaurarReceitaOriginal(id){
+  const r = receitas.find(x=>x.id===id); const orig = r && receitaOriginalDe(r.nome);
+  if(!orig) return;
+  const linhas = orig[1].map(([n,d])=>`• ${n} — ${d} ${doseLabel((IMPORT_PRODUTOS[n]||{un:'L'}).un)}`).join('\n');
+  if(!confirm('Restaurar a receita "'+r.nome+'" para a composição original?\n\n'+linhas+'\n\nOs produtos que ainda não existirem no cadastro serão criados com saldo ZERO. O estoque dos existentes não muda.')) return;
+  const ts = firebase.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch(); const criados = [];
+  const itens = orig[1].map(([nome,dose])=>{
+    let prod = produtos.find(p=>normNome(p.nome)===normNome(nome));
+    if(!prod){
+      const d = IMPORT_PRODUTOS[nome] || {un:'L',cat:'Outro'};
+      const ref = db.collection('produtos').doc();
+      batch.set(ref, {nome, categoria:d.cat, fabricante:'', ingredienteAtivo:'', lote:'', validade:'', unidade:d.un, quantidade:0, estoqueMinimo:0, local:'', observacoes:'Criado ao restaurar a receita '+r.nome, criadoEm:ts, atualizadoEm:ts});
+      prod = {id:ref.id, nome, unidade:d.un, ingredienteAtivo:''}; criados.push(nome);
+    }
+    return {produtoId:prod.id, produtoNome:prod.nome, unidade:prod.unidade, ingredienteAtivo:prod.ingredienteAtivo||'', dosePorKg:dose};
+  });
+  batch.update(db.collection('receitas').doc(id), {itens});
+  batch.commit().then(()=>toast('Receita restaurada com '+itens.length+' produtos'+(criados.length?' (criados no cadastro: '+criados.join(', ')+')':'')))
+    .catch(()=>toast('Erro ao restaurar a receita', true));
+}
 document.getElementById('btnRestaurarReceita').addEventListener('click', ()=>{
   const orig = receitaOriginalDe(document.getElementById('rNome').value);
   if(!orig){ toast('Esta receita não está na lista original', true); return; }
@@ -1626,6 +1653,7 @@ function renderReceitas(){
         </div>
         ${ingredienteDoItem(i) ? `<div style="font-size:11px; color:var(--text-mute);">Aceita outro produto com o mesmo ingrediente ativo (${esc(ingredienteDoItem(i))})</div>` : `<div style="font-size:11px; color:var(--warn-text);">Sem ingrediente ativo — sem substituição automática</div>`}
       </div>`).join('')}
+      ${receitaDifereDoOriginal(r) ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px; width:100%; justify-content:center;" onclick="restaurarReceitaOriginal('${r.id}')">↺ Restaurar composição original (${receitaOriginalDe(r.nome)[1].length} produtos)</button>` : ''}
       ${!r.itens.every(i=>i.dosePorKg!=null) ? '<p style="font-size:11.5px; color:var(--warn-text); margin-top:8px;">⚠ Receita antiga — a dose foi convertida automaticamente. Confira e salve novamente.</p>' : ''}
       ${r.observacoes ? `<p style="font-size:12px; color:var(--text-mute); margin-top:8px;">${esc(r.observacoes)}</p>` : ''}
     </div>`).join('');
