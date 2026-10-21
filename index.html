@@ -518,6 +518,7 @@ tbody tr:hover{background:#FAFCFA;}
             <span class="chip-filter" data-mov-filter="entrada">Entradas</span>
             <span class="chip-filter" data-mov-filter="saida">Saídas</span>
             <div class="grow"></div>
+            <button class="btn btn-ghost" id="btnAcerto" title="Dar a entrada inicial de um produto e descontar as ordens já lançadas">Acerto inicial</button>
             <button class="btn btn-primary" id="btnNovaMov">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Nova movimentação
@@ -730,6 +731,27 @@ tbody tr:hover{background:#FAFCFA;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modalReceita')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarReceita">Salvar receita</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ACERTO INICIAL ============ -->
+<div class="modal-overlay" id="modalAcerto">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title">Acerto inicial de estoque</div><button class="modal-close" onclick="closeModal('modalAcerto')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px; color:var(--text-soft); margin-bottom:12px;">Dá a <b>entrada inicial</b> do produto e, se você quiser, <b>desconta as ordens já lançadas</b> cuja receita usa esse produto e que ainda não descontaram dele. Nada é gravado até você confirmar. Faça um produto de cada vez.</p>
+      <div class="form-grid">
+        <div class="field"><label>Produto</label><select id="acProduto"></select></div>
+        <div class="field"><label>Entrada inicial (<span id="acUn">L</span>)</label><input type="number" step="0.01" id="acEntrada" placeholder="Ex: 850"></div>
+        <div class="field"><label>Data da entrada</label><input type="date" id="acData"></div>
+        <div class="field" style="display:flex; align-items:flex-end;"><label style="display:flex; gap:8px; align-items:center; cursor:pointer; white-space:nowrap; text-transform:none; letter-spacing:0; font-size:13px;"><input type="checkbox" id="acDescontar" checked style="width:auto;"> Descontar ordens já lançadas</label></div>
+      </div>
+      <div id="acPreview" style="margin-top:14px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalAcerto')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmAcerto">Confirmar e gravar</button>
     </div>
   </div>
 </div>
@@ -1431,6 +1453,97 @@ document.getElementById('btnSalvarMov').addEventListener('click', ()=>{
   batch.commit().then(()=>{ closeModal('modalMov'); toast('Movimentação registrada'); })
     .catch(()=>toast('Erro ao registrar movimentação', true));
 });
+
+/* =========================================================
+   ACERTO INICIAL: entrada inicial + baixa retroativa das ordens já lançadas
+========================================================= */
+function acOrdensPendentes(prod){
+  // ordens cuja receita (hoje) usa o produto e que não têm esse produto em itensConsumidos
+  const res = [];
+  lotes.forEach(l=>{
+    const rec = receitas.find(r=>r.id===l.receitaId) || receitas.find(r=>normNome(r.nome)===normNome(l.receitaNome));
+    if(!rec) return;
+    const item = (rec.itens||[]).find(i=>{ const pr = produtoDoItem(i); return pr ? pr.id===prod.id : normNome(i.produtoNome)===normNome(prod.nome); });
+    if(!item) return;
+    const jaTem = (l.itensConsumidos||[]).some(c=> c.produtoId===prod.id || normNome(c.produtoNome)===normNome(prod.nome));
+    if(jaTem) return;
+    const kg = Number(l.quantidadeSementes)||0;
+    const consumo = consumoDoItem(item, prod, kg);
+    if(consumo>0) res.push({lote:l, receita:rec, consumo});
+  });
+  return res.sort((a,b)=> String(a.lote.data||'').localeCompare(String(b.lote.data||'')));
+}
+function acRender(){
+  const prod = produtos.find(p=>p.id===document.getElementById('acProduto').value);
+  const prev = document.getElementById('acPreview');
+  if(!prod){ prev.innerHTML=''; return; }
+  document.getElementById('acUn').textContent = prod.unidade;
+  const entrada = Number(document.getElementById('acEntrada').value)||0;
+  const marcadas = new Set([...document.querySelectorAll('#acPreview .ac-chk:checked')].map(c=>c.dataset.id));
+  const primeira = !document.getElementById('acPreview').dataset.init;
+  const pend = document.getElementById('acDescontar').checked ? acOrdensPendentes(prod) : [];
+  const usa = o => primeira || marcadas.has(o.lote.id);
+  const total = pend.filter(usa).reduce((a,o)=>a+o.consumo,0);
+  const saldoAtual = Number(prod.quantidade)||0;
+  const saldoFinal = +(saldoAtual + entrada - total).toFixed(3);
+  prev.dataset.init = '1';
+  prev.innerHTML = `
+    ${pend.length ? `<div class="table-wrap" style="max-height:260px; overflow:auto;"><table><thead><tr><th></th><th>Data</th><th>N° da ordem</th><th>Cultivar</th><th>Receita</th><th>Sementes (kg)</th><th>Vai descontar (${esc(prod.unidade)})</th></tr></thead><tbody>
+      ${pend.map(o=>`<tr><td><input type="checkbox" class="ac-chk" data-id="${o.lote.id}" ${usa(o)?'checked':''}></td><td>${fmtDate(o.lote.data)}</td><td>${esc(o.lote.numeroLote)}</td><td>${esc(o.lote.cultivar)}</td><td>${esc(o.lote.receitaNome)}</td><td>${fmtNum(o.lote.quantidadeSementes)}</td><td><b>${fmtNum(o.consumo)}</b></td></tr>`).join('')}
+    </tbody></table></div>` : `<p style="color:var(--text-mute); font-size:13px;">${document.getElementById('acDescontar').checked ? 'Nenhuma ordem já lançada precisa ser descontada deste produto.' : 'Sem desconto de ordens.'}</p>`}
+    <div class="card" style="margin-top:12px; background:var(--green-soft, #E7F3EC);">
+      <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:13.5px;">
+        <span>Saldo atual: <b>${fmtNum(saldoAtual)} ${esc(prod.unidade)}</b></span>
+        <span>+ Entrada: <b>${fmtNum(entrada)}</b></span>
+        <span>− Ordens (${pend.filter(usa).length}): <b>${fmtNum(+total.toFixed(3))}</b></span>
+        <span style="${saldoFinal<0?'color:var(--danger);':''}">= Saldo final: <b>${fmtNum(saldoFinal)} ${esc(prod.unidade)}</b></span>
+      </div>
+      ${saldoFinal<0 ? '<div style="color:var(--danger); font-size:12.5px; margin-top:6px;">⚠ O saldo final ficaria negativo — confira a entrada informada.</div>' : ''}
+    </div>`;
+  prev.querySelectorAll('.ac-chk').forEach(c=>c.addEventListener('change', acRender));
+}
+document.getElementById('btnAcerto').addEventListener('click', ()=>{
+  const sel = document.getElementById('acProduto');
+  sel.innerHTML = '<option value="">Selecione...</option>' + [...produtos].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR',{sensitivity:'base'})).map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join('');
+  document.getElementById('acEntrada').value = '';
+  document.getElementById('acData').value = todayISO();
+  document.getElementById('acDescontar').checked = true;
+  document.getElementById('acPreview').innerHTML = ''; delete document.getElementById('acPreview').dataset.init;
+  openModal('modalAcerto');
+});
+document.getElementById('acProduto').addEventListener('change', ()=>{ delete document.getElementById('acPreview').dataset.init; acRender(); });
+document.getElementById('acEntrada').addEventListener('input', acRender);
+document.getElementById('acDescontar').addEventListener('change', ()=>{ delete document.getElementById('acPreview').dataset.init; acRender(); });
+document.getElementById('btnConfirmAcerto').addEventListener('click', ()=>{
+  const prod = produtos.find(p=>p.id===document.getElementById('acProduto').value);
+  if(!prod){ toast('Selecione um produto', true); return; }
+  const entrada = Number(document.getElementById('acEntrada').value)||0;
+  const dataEntrada = document.getElementById('acData').value || todayISO();
+  const marcadas = new Set([...document.querySelectorAll('#acPreview .ac-chk:checked')].map(c=>c.dataset.id));
+  const pend = (document.getElementById('acDescontar').checked ? acOrdensPendentes(prod) : []).filter(o=>marcadas.has(o.lote.id));
+  if(!entrada && !pend.length){ toast('Nada a gravar: informe a entrada ou marque ordens', true); return; }
+  const total = pend.reduce((a,o)=>a+o.consumo,0);
+  const saldoFinal = +((Number(prod.quantidade)||0) + entrada - total).toFixed(3);
+  if(saldoFinal<0 && !confirm('O saldo final de '+prod.nome+' ficará NEGATIVO ('+fmtNum(saldoFinal)+' '+prod.unidade+'). Gravar mesmo assim?')) return;
+  if(!confirm('Gravar para '+prod.nome+':\n• Entrada inicial: '+fmtNum(entrada)+' '+prod.unidade+'\n• Descontar '+pend.length+' ordem(ns): '+fmtNum(+total.toFixed(3))+' '+prod.unidade+'\n• Saldo final: '+fmtNum(saldoFinal)+' '+prod.unidade)) return;
+  if(1+pend.length*2+1 > 450){ toast('Muitas ordens de uma vez; desmarque algumas e repita', true); return; }
+  const batch = db.batch(); const ts = firebase.firestore.FieldValue.serverTimestamp();
+  const quem = (currentUserData && currentUserData.nome) || 'Usuário';
+  let saldo = Number(prod.quantidade)||0;
+  if(entrada){
+    saldo = +(saldo + entrada).toFixed(3);
+    batch.set(db.collection('movimentacoes').doc(), { produtoId:prod.id, produtoNome:prod.nome, tipo:'entrada', motivo:'Compra', quantidade:entrada, data:dataEntrada, observacoes:'Entrada inicial de estoque', responsavel:quem, saldoApos:saldo, criadoEm:ts });
+  }
+  pend.forEach(o=>{
+    saldo = +(saldo - o.consumo).toFixed(3);
+    batch.set(db.collection('movimentacoes').doc(), { produtoId:prod.id, produtoNome:prod.nome, tipo:'saida', motivo:'Consumo em tratamento de sementes', quantidade:o.consumo, data:o.lote.data, observacoes:`Ordem ${o.lote.numeroLote} — ${o.lote.cultivar} (receita: ${o.receita.nome}) — baixa retroativa`, responsavel:quem, saldoApos:saldo, criadoEm:ts });
+    batch.update(db.collection('lotesTratamento').doc(o.lote.id), { itensConsumidos: [...(o.lote.itensConsumidos||[]), {produtoId:prod.id, produtoNome:prod.nome, quantidade:o.consumo, unidade:prod.unidade}] });
+  });
+  batch.update(db.collection('produtos').doc(prod.id), { quantidade: saldo });
+  batch.commit().then(()=>{ closeModal('modalAcerto'); toast('Acerto gravado: '+prod.nome+' agora com '+fmtNum(saldo)+' '+prod.unidade); })
+    .catch(()=>toast('Erro ao gravar o acerto', true));
+});
+
 let movFilter = 'todas';
 document.querySelectorAll('.chip-filter[data-mov-filter]').forEach(el=>{
   el.addEventListener('click', ()=>{
