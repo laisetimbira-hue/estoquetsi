@@ -750,6 +750,7 @@ tbody tr:hover{background:#FAFCFA;}
       <div id="acPreview" style="margin-top:14px;"></div>
     </div>
     <div class="modal-foot">
+      <button class="btn btn-ghost" id="btnDesfazerAcerto" style="margin-right:auto; color:var(--danger);" title="Apaga a entrada inicial e as baixas retroativas feitas pelo Acerto inicial deste produto">↶ Desfazer acerto deste produto</button>
       <button class="btn btn-ghost" onclick="closeModal('modalAcerto')">Cancelar</button>
       <button class="btn btn-primary" id="btnConfirmAcerto">Confirmar e gravar</button>
     </div>
@@ -1542,6 +1543,43 @@ document.getElementById('btnConfirmAcerto').addEventListener('click', ()=>{
   batch.update(db.collection('produtos').doc(prod.id), { quantidade: saldo });
   batch.commit().then(()=>{ closeModal('modalAcerto'); toast('Acerto gravado: '+prod.nome+' agora com '+fmtNum(saldo)+' '+prod.unidade); })
     .catch(()=>toast('Erro ao gravar o acerto', true));
+});
+
+
+/* Desfazer o Acerto inicial de um produto: apaga SÓ as movimentações criadas pelo acerto (entrada inicial e "baixa retroativa"),
+   tira o consumo gravado nas ordens e volta o saldo. Movimentações normais não são tocadas. */
+function acMovsDoAcerto(prod){
+  return movimentacoes.filter(m=> m.produtoId===prod.id && (
+    (m.tipo==='entrada' && m.observacoes==='Entrada inicial de estoque') ||
+    (m.tipo==='saida' && /baixa retroativa$/.test(m.observacoes||''))));
+}
+document.getElementById('btnDesfazerAcerto').addEventListener('click', ()=>{
+  const prod = produtos.find(p=>p.id===document.getElementById('acProduto').value);
+  if(!prod){ toast('Selecione o produto primeiro', true); return; }
+  const movs = acMovsDoAcerto(prod);
+  if(!movs.length){ toast('Não há acerto inicial gravado para '+prod.nome, true); return; }
+  const entradas = movs.filter(m=>m.tipo==='entrada'), saidas = movs.filter(m=>m.tipo==='saida');
+  const somaE = entradas.reduce((a,m)=>a+Number(m.quantidade||0),0), somaS = saidas.reduce((a,m)=>a+Number(m.quantidade||0),0);
+  const saldoNovo = +((Number(prod.quantidade)||0) - somaE + somaS).toFixed(3);
+  if(!confirm('Desfazer o acerto de '+prod.nome+'?\n\n• Apagar '+entradas.length+' entrada(s) inicial(is): '+fmtNum(somaE)+' '+prod.unidade+'\n• Apagar '+saidas.length+' baixa(s) de ordens: '+fmtNum(+somaS.toFixed(3))+' '+prod.unidade+' (volta para o saldo)\n• Saldo: '+fmtNum(Number(prod.quantidade)||0)+' → '+fmtNum(saldoNovo)+' '+prod.unidade+'\n\nDepois você pode fazer o Acerto de novo.')) return;
+  if(movs.length + 2 > 450){ toast('Movimentações demais para desfazer de uma vez', true); return; }
+  const batch = db.batch(); const lotesAjustar = {};
+  movs.forEach(m=>{
+    batch.delete(db.collection('movimentacoes').doc(m.id));
+    if(m.tipo==='saida'){
+      const mt = /^Ordem (.+?) — /.exec(m.observacoes||'');
+      const lote = mt && lotes.find(l=> String(l.numeroLote)===mt[1] && (l.itensConsumidos||[]).some(c=>c.produtoId===prod.id));
+      if(lote){
+        const atual = lotesAjustar[lote.id] || (lotesAjustar[lote.id] = {lote, itens:[...(lote.itensConsumidos||[])]});
+        const i = atual.itens.findIndex(c=>c.produtoId===prod.id && Math.abs(Number(c.quantidade)-Number(m.quantidade))<0.001);
+        if(i>=0) atual.itens.splice(i,1);
+      }
+    }
+  });
+  Object.values(lotesAjustar).forEach(a=> batch.update(db.collection('lotesTratamento').doc(a.lote.id), {itensConsumidos:a.itens}));
+  batch.update(db.collection('produtos').doc(prod.id), {quantidade: saldoNovo});
+  batch.commit().then(()=>{ closeModal('modalAcerto'); toast('Acerto desfeito: '+prod.nome+' voltou para '+fmtNum(saldoNovo)+' '+prod.unidade); })
+    .catch(()=>toast('Erro ao desfazer o acerto', true));
 });
 
 let movFilter = 'todas';
