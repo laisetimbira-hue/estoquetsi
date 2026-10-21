@@ -594,8 +594,14 @@ tbody tr:hover{background:#FAFCFA;}
             <span class="chip-filter" data-rel="consumo-lote">Consumo por ordem</span>
             <span class="chip-filter" data-rel="sobra">Sobra de semente tratada</span>
             <div class="grow"></div>
-            <button class="btn btn-ghost btn-sm" id="btnExportExcel">Exportar Excel</button>
-            <button class="btn btn-ghost btn-sm" id="btnExportPdf">Exportar PDF</button>
+            <button class="btn btn-primary btn-sm" id="btnExportExcel" title="Baixar este relatório em Excel">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+              Exportar Excel
+            </button>
+            <button class="btn btn-primary btn-sm" id="btnExportPdf" title="Imprimir este relatório ou salvar em PDF">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Imprimir / PDF
+            </button>
           </div>
           <div class="card" style="margin-bottom:16px;" id="relatorioResumo"></div>
           <div class="table-wrap">
@@ -2100,8 +2106,19 @@ function renderRelatorio(key){
 }
 document.getElementById('btnExportExcel').addEventListener('click', ()=>{
   const table = document.getElementById('tblRelatorio');
-  const wb = XLSX.utils.table_to_book(table, {sheet:'Relatorio'});
-  XLSX.writeFile(wb, 'relatorio_' + currentReportKey + '.xlsx');
+  const nomeArq = 'relatorio_' + currentReportKey;
+  try {
+    if(typeof XLSX === 'undefined') throw new Error('sem biblioteca de Excel');
+    const wb = XLSX.utils.table_to_book(table, {sheet:'Relatorio'});
+    XLSX.writeFile(wb, nomeArq + '.xlsx');
+  } catch(e){
+    // plano B: se a biblioteca de Excel não carregar, baixa em CSV (abre direto no Excel)
+    const linhas = [...table.querySelectorAll('tr')].map(tr=>[...tr.children].map(c=>'"'+c.innerText.replace(/\s+/g,' ').trim().replace(/"/g,'""')+'"').join(';'));
+    const blob = new Blob(['\ufeff'+linhas.join('\r\n')], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nomeArq + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Baixado em CSV (abre no Excel)');
+  }
 });
 const NOMES_RELATORIO = {
   'estoque':'Estoque atual', 'movimentacoes':'Histórico de movimentações',
