@@ -775,7 +775,7 @@ tbody tr:hover{background:#FAFCFA;}
             <option value="C2605E">C2605 · Enlist E3</option>
             <option value="C2615CE">C2615 · Conkesta E3</option>
             <option value="C2645CE">C2645 · Conkesta E3</option>
-            <option value="Campacta">Campacta (65I65RSF IPRO)</option>
+            <option value="Compacta">Compacta (65I65RSF IPRO)</option>
             <option value="DM59IX61RSF I2X">DM59IX61RSF I2X</option>
             <option value="DM65IX67 RSF I2X">DM65IX67 RSF I2X</option>
             <option value="Fera">Fera (64IX62RSF I2X)</option>
@@ -1054,7 +1054,8 @@ function initListeners(){
     renderReceitas(); fillReceitaSelect(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
-    lotes = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    // ordens antigas gravadas como "Campacta" aparecem como "Compacta" (só na tela; o que está gravado não muda)
+    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; return x; });
     renderLotes(); renderCentroOperacoes();
   }));
   db.collection('usuarios').onSnapshot(snap=>{
