@@ -342,8 +342,8 @@ tbody tr:hover{background:#FAFCFA;}
     <div class="login-sub">Controle de insumos para Tratamento Industrial de Sementes</div>
     <div class="login-error" id="loginError"></div>
     <div class="field">
-      <label>E-mail</label>
-      <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="username">
+      <label>Usuário</label>
+      <input type="text" id="loginEmail" placeholder="seu nome" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
     </div>
     <div class="field">
       <label>Senha</label>
@@ -943,20 +943,23 @@ function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;',
 document.getElementById('btnLogin').addEventListener('click', doLogin);
 document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 
+const DOMINIO_LOGIN = 'tsiestoque.com';
 function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
+  let email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  // login só com o nome: o app completa com o final fixo (o Firebase exige formato de e-mail). Quem digitar o e-mail completo continua entrando.
+  if(email && email.indexOf('@')<0) email = email + '@' + DOMINIO_LOGIN;
   const pass = document.getElementById('loginPass').value;
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
-  if(!email || !pass){ errEl.textContent = 'Informe e-mail e senha.'; errEl.style.display='block'; return; }
+  if(!email || !pass){ errEl.textContent = 'Informe o usuário e a senha.'; errEl.style.display='block'; return; }
   auth.signInWithEmailAndPassword(email, pass).catch(err=>{
     const c = (err && err.code) || '';
     errEl.textContent = (/network/.test(c) ? 'Sem conexão com a internet.'
       : /too-many/.test(c) ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
       : /operation-not-allowed|configuration/.test(c) ? 'Login por e-mail/senha ainda não está ativado no Firebase.'
       : /invalid-email/.test(c) ? 'O e-mail está escrito de forma inválida (confira o @ e o final do endereço).'
-      : /user-not-found/.test(c) ? 'Este e-mail não existe no sistema. Confira se é igual ao cadastrado no Firebase.'
-      : /wrong-password|invalid-credential|invalid-login/.test(c) ? 'E-mail ou senha não conferem. Confira se o e-mail está completo e a senha igual à que foi criada (maiúsculas e minúsculas contam).'
+      : /user-not-found/.test(c) ? 'Este usuário não existe no sistema. Confira o nome digitado.'
+      : /wrong-password|invalid-credential|invalid-login/.test(c) ? 'Usuário ou senha não conferem. Confira o nome e a senha (maiúsculas e minúsculas contam na senha).'
       : /user-disabled/.test(c) ? 'Esta conta está desativada no Firebase.'
       : /api-key|app-not-authorized|unauthorized-domain/.test(c) ? 'O Firebase não autorizou este endereço do site. Avise o administrador.'
       : 'Não foi possível entrar. Verifique e-mail e senha.') + (c ? ' ['+c+']' : '');
