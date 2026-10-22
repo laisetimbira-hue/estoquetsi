@@ -951,10 +951,15 @@ function doLogin(){
   if(!email || !pass){ errEl.textContent = 'Informe e-mail e senha.'; errEl.style.display='block'; return; }
   auth.signInWithEmailAndPassword(email, pass).catch(err=>{
     const c = (err && err.code) || '';
-    errEl.textContent = /network/.test(c) ? 'Sem conexão com a internet.'
+    errEl.textContent = (/network/.test(c) ? 'Sem conexão com a internet.'
       : /too-many/.test(c) ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
       : /operation-not-allowed|configuration/.test(c) ? 'Login por e-mail/senha ainda não está ativado no Firebase.'
-      : 'Não foi possível entrar. Verifique e-mail e senha.';
+      : /invalid-email/.test(c) ? 'O e-mail está escrito de forma inválida (confira o @ e o final do endereço).'
+      : /user-not-found/.test(c) ? 'Este e-mail não existe no sistema. Confira se é igual ao cadastrado no Firebase.'
+      : /wrong-password|invalid-credential|invalid-login/.test(c) ? 'E-mail ou senha não conferem. Confira se o e-mail está completo e a senha igual à que foi criada (maiúsculas e minúsculas contam).'
+      : /user-disabled/.test(c) ? 'Esta conta está desativada no Firebase.'
+      : /api-key|app-not-authorized|unauthorized-domain/.test(c) ? 'O Firebase não autorizou este endereço do site. Avise o administrador.'
+      : 'Não foi possível entrar. Verifique e-mail e senha.') + (c ? ' ['+c+']' : '');
     errEl.style.display = 'block';
   });
 }
