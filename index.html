@@ -2132,6 +2132,34 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   batch.commit().then(()=>{ closeModal('modalLote'); toast('Ordem registrada e estoque atualizado'); })
     .catch(()=> toast('Erro ao salvar tratamento do lote', true));
 });
+
+/* Excluir UMA ordem: devolve ao estoque o que ela consumiu e apaga as saídas dela no histórico.
+   Se existirem duas ordens iguais (mesmo número), só a escolhida é apagada. */
+function excluirLote(id){
+  const l = lotes.find(x=>x.id===id); if(!l) return;
+  const itens = l.itensConsumidos || [];
+  const usadas = new Set(); const movsApagar = []; const devolver = {};
+  itens.forEach(it=>{
+    const prod = produtos.find(p=>p.id===it.produtoId) || produtos.find(p=>normNome(p.nome)===normNome(it.produtoNome));
+    const q = Number(it.quantidade)||0;
+    if(prod) devolver[prod.id] = (devolver[prod.id]||0) + q;
+    const m = movimentacoes.find(m=> !usadas.has(m.id) && m.tipo==='saida' && (m.produtoId===(prod?prod.id:it.produtoId)) &&
+      String(m.observacoes||'').startsWith('Ordem '+l.numeroLote+' — ') && Math.abs(Number(m.quantidade)-q)<0.001);
+    if(m){ usadas.add(m.id); movsApagar.push(m); }
+  });
+  const linhas = itens.map(it=>'• '+it.produtoNome+': +'+fmtNum(Number(it.quantidade)||0)+' '+(it.unidade||'')).join('\n') || '(sem consumo registrado)';
+  if(!confirm('Excluir a ordem '+l.numeroLote+' ('+l.cultivar+', '+fmtDate(l.data)+', '+fmtNum(l.quantidadeSementes)+' kg)?\n\nVai voltar para o estoque:\n'+linhas+'\n\nEsta ação não pode ser desfeita.')) return;
+  if(movsApagar.length + Object.keys(devolver).length + 1 > 450){ toast('Muitos registros para apagar de uma vez', true); return; }
+  const batch = db.batch();
+  Object.keys(devolver).forEach(pid=>{
+    const prod = produtos.find(p=>p.id===pid);
+    batch.update(db.collection('produtos').doc(pid), { quantidade: +((Number(prod.quantidade)||0) + devolver[pid]).toFixed(3) });
+  });
+  movsApagar.forEach(m=> batch.delete(db.collection('movimentacoes').doc(m.id)));
+  batch.delete(db.collection('lotesTratamento').doc(l.id));
+  batch.commit().then(()=>toast('Ordem '+l.numeroLote+' excluída e estoque devolvido'))
+    .catch(()=>toast('Erro ao excluir a ordem', true));
+}
 function lotesBuscados(){
   const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
   if(!termo) return lotes;
@@ -2153,6 +2181,8 @@ function renderLotes(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
       </button><button onclick='openSobra("${l.id}")' title="Informar sobra de semente tratada">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+      </button><button onclick='excluirLote("${l.id}")' title="Excluir esta ordem (devolve o estoque)" style="color:var(--danger);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
       </button></div></td>
     </tr>`).join('');
   renderSobraResumo();
