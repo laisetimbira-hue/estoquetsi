@@ -783,7 +783,6 @@ tbody tr:hover{background:#FAFCFA;}
             <option value="C2645CE">C2645 · Conkesta E3</option>
             <option value="Compacta">Compacta (65I65RSF IPRO)</option>
             <option value="DM59IX61RSF I2X">DM59IX61RSF I2X</option>
-            <option value="DM65IX67 RSF I2X">DM65IX67 RSF I2X</option>
             <option value="Fera">Fera (64IX62RSF I2X)</option>
             <option value="Fibra">Fibra (64I61RSF IPRO)</option>
             <option value="Fúria">Fúria (65IX67RSF I2X)</option>
@@ -1068,8 +1067,8 @@ function initListeners(){
     renderReceitas(); fillReceitaSelect(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
-    // ordens antigas gravadas como "Campacta" aparecem como "Compacta" (só na tela; o que está gravado não muda)
-    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; return x; });
+    // nomes antigos de cultivar aparecem com o nome certo (Campacta→Compacta, DM65IX67 RSF I2X→Fúria); só na tela, o que está gravado não muda
+    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; return x; });
     renderLotes(); renderCentroOperacoes();
   }));
   db.collection('usuarios').onSnapshot(snap=>{
