@@ -1050,7 +1050,7 @@ document.getElementById('sidebarOverlay').addEventListener('click', ()=>{
 ========================================================= */
 function initListeners(){
   unsubs.push(db.collection('produtos').onSnapshot(snap=>{
-    produtos = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    produtos = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base',numeric:true}));
     renderProdutos(); renderDashboard(); fillProdutoSelects(); renderReceitas(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('movimentacoes').orderBy('criadoEm','desc').onSnapshot(snap=>{
