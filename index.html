@@ -442,6 +442,11 @@ tbody tr:hover{background:#FAFCFA;}
               <option value="30d">Últimos 30 dias</option>
               <option value="total">Total</option>
             </select>
+            <select class="chip-filter" id="coUnidade" autocomplete="off" title="Mostrar o volume de sementes em kg, sacos de 125 mil sementes ou big bags de 5 milhões" style="border:1.5px solid var(--green); background:var(--surface); font-weight:700;">
+              <option value="kg" selected>Volume em: kg</option>
+              <option value="sc">Volume em: SC 125k</option>
+              <option value="bb">Volume em: BB 5MM</option>
+            </select>
             <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
             <select class="chip-filter" id="coOperador" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todos">Todos os operadores</option></select>
             <select class="chip-filter" id="coReceita" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas as receitas</option></select>
@@ -470,7 +475,7 @@ tbody tr:hover{background:#FAFCFA;}
               <canvas id="chartCoConsumo" height="160"></canvas>
             </div>
             <div class="card">
-              <div class="card-head"><div class="card-title">Sementes tratadas por cultivar (kg)</div></div>
+              <div class="card-head"><div class="card-title" id="coTituloCultivar">Sementes tratadas por cultivar (kg)</div></div>
               <canvas id="chartCoCultivar" height="160"></canvas>
             </div>
           </div>
@@ -1128,6 +1133,28 @@ function renderDashboard(){ updateAlertBadges(); } // tela Dashboard removida; m
    modelo de dados hoje; ficam para uma próxima etapa)
 ========================================================= */
 let chartCoConsumo = null, chartCoCultivar = null;
+
+/* PMS (peso de mil sementes, em gramas) por cultivar — lista enviada pelo cliente.
+   Sementes = kg × 1.000.000 ÷ PMS. SC = sacos de 125 mil sementes; BB = big bags de 5 milhões. */
+const PMS_CULTIVAR = {
+  'C2560CE':227.3, 'Valente':226.4, 'Orion':222.1, 'Zeus':216.0, 'Titanium':215.8, 'Imune':209.8,
+  'C2645CE':201.0, 'C2535CE':189.6, 'C2530RR':189.4, 'Raio':189.1, 'C2575E':188.9, 'C2600IPRO':187.7,
+  'Grafeno':184.4, 'Compacta':182.7, 'C2550E':180.6, 'Raça':178.7, 'Ativa':176.4, '97Y70CE':175.2,
+  'Vênus':175.2, 'Torque':173.5, 'Fibra':164.9, 'C2615CE':163.9, 'Nexus':147.3, 'C2605E':146.5
+};
+const UNIDADES_VOLUME = { kg:{rotulo:'kg', sem:null}, sc:{rotulo:'SC 125k', sem:125000}, bb:{rotulo:'BB 5MM', sem:5000000} };
+function pmsDe(cultivar){ return PMS_CULTIVAR[cultivar] || PMS_CULTIVAR[String(cultivar||'').replace(/\s+/g,'')] || null; }
+/* converte kg de uma cultivar para a unidade escolhida; null se a cultivar não tem PMS */
+function volumeEm(kg, cultivar, un){
+  if(un==='kg') return kg;
+  const pms = pmsDe(cultivar); if(!pms) return null;
+  return kg * 1000000 / pms / UNIDADES_VOLUME[un].sem;
+}
+function fmtVolume(v, un){
+  if(v==null) return '—';
+  return un==='kg' ? Math.round(v).toLocaleString('pt-BR') : v.toLocaleString('pt-BR',{minimumFractionDigits:1, maximumFractionDigits:1});
+}
+
 document.getElementById('coPeriodo').value = 'hoje'; // sempre abre em "Hoje"
 function getCoFiltros(){
   return {
@@ -1231,12 +1258,26 @@ function renderCentroOperacoes(){
     user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     receipt:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/><path d="M8 7h8M8 11h8"/>'
   };
+  const unVol = document.getElementById('coUnidade').value;
+  let kpiSementes;
+  if(unVol==='kg'){
+    kpiSementes = {label:'Sementes tratadas (kg)', value: sementesTratadas.toLocaleString('pt-BR'), icon:'seed', color:'var(--green)'};
+  } else {
+    let total = 0, semPms = {}, kgSemPms = 0;
+    lotesF.forEach(l=>{
+      const kg = Number(l.quantidadeSementes)||0, v = volumeEm(kg, l.cultivar, unVol);
+      if(v==null){ semPms[l.cultivar]=1; kgSemPms += kg; } else total += v;
+    });
+    const nomesSem = Object.keys(semPms);
+    kpiSementes = {label:'Sementes tratadas ('+UNIDADES_VOLUME[unVol].rotulo+')', value: fmtVolume(total, unVol), icon:'seed', color:'var(--green)',
+      sub: sementesTratadas.toLocaleString('pt-BR')+' kg no total' + (nomesSem.length ? ' · sem PMS: '+nomesSem.join(', ')+' ('+Math.round(kgSemPms).toLocaleString('pt-BR')+' kg fora da conta)' : '')};
+  }
   const kpis = [
     {label:'Produtos cadastrados', value: produtos.length, icon:'box', color:'var(--green)'},
     {label:'Abaixo do mínimo', value: baixoMin.length, icon:'trend', color:'var(--green)', cls: baixoMin.length?'danger':''},
     {label:'Vencendo em 30 dias', value: venc30.length, icon:'clock', color:'var(--green)', cls: venc30.length?'warn':''},
     {label:'Ordens de tratamento no período', value: lotesF.length, icon:'seed', color:'var(--green)'},
-    {label:'Sementes tratadas (kg)', value: sementesTratadas.toLocaleString('pt-BR'), icon:'seed', color:'var(--green)'},
+    kpiSementes,
     {label:'Movimentações no período', value: movsF.length, icon:'consumo', color:'var(--green)'},
     {label:'Operadores em atividade', value: operadoresAtivos.size, icon:'user', color:'var(--green)'},
     {label:'Receitas em uso', value: receitasEmUso.size, icon:'receipt', color:'var(--green)'}
@@ -1244,7 +1285,7 @@ function renderCentroOperacoes(){
   document.getElementById('coKpiGrid').innerHTML = kpis.map(k=>`
     <div class="kpi-card">
       <div class="kpi-ring">${ringSvg(100, k.color)}<div class="kpi-ring-icon" style="color:${k.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[k.icon]}</svg></div></div>
-      <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div></div>
+      <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div>${k.sub?`<div class="kpi-sub">${esc(k.sub)}</div>`:''}</div>
     </div>`).join('');
 
 
@@ -1252,7 +1293,7 @@ function renderCentroOperacoes(){
   document.getElementById('coLotes').innerHTML = lotesF.length ? lotesF.slice().sort((a,b)=>(b.criadoEm?.seconds||0)-(a.criadoEm?.seconds||0)).map(l=>`
     <div style="padding:10px 0; border-bottom:1px solid #F0F2F1; font-size:13px;">
       <div style="display:flex; justify-content:space-between;"><b>${esc(l.cultivar)}</b><span style="color:var(--text-mute); font-size:12px;">${l.criadoEm ? new Date(l.criadoEm.seconds*1000).toLocaleString('pt-BR') : fmtDate(l.data)}</span></div>
-      <div style="color:var(--text-soft); font-size:12.5px;">Ordem ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg</div>
+      <div style="color:var(--text-soft); font-size:12.5px;">Ordem ${esc(l.numeroLote)} · ${esc(l.receitaNome)} · Operador: ${esc(l.operador||'—')} · ${fmtNum(l.quantidadeSementes)} kg${(()=>{ const u=document.getElementById('coUnidade').value; if(u==='kg') return ''; const v=volumeEm(Number(l.quantidadeSementes)||0,l.cultivar,u); return v==null?' · (sem PMS)':' · ≈ '+fmtVolume(v,u)+' '+UNIDADES_VOLUME[u].rotulo; })()}</div>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma ordem de tratamento nesse período.</p>';
 
   // Consumo de produtos (por dia, dentro do período filtrado)
@@ -1276,7 +1317,11 @@ function renderCentroOperacoes(){
 
     // Consumo por cultivar (kg de sementes tratadas)
     const porCultivar = {};
-    lotesF.forEach(l=>{ porCultivar[l.cultivar] = (porCultivar[l.cultivar]||0) + (Number(l.quantidadeSementes)||0); });
+    lotesF.forEach(l=>{
+      const v = volumeEm(Number(l.quantidadeSementes)||0, l.cultivar, unVol);
+      if(v!=null) porCultivar[l.cultivar] = +(((porCultivar[l.cultivar]||0) + v).toFixed(2));
+    });
+    document.getElementById('coTituloCultivar').textContent = 'Sementes tratadas por cultivar ('+UNIDADES_VOLUME[unVol].rotulo+')';
     if(chartCoCultivar) chartCoCultivar.destroy();
     chartCoCultivar = new Chart(document.getElementById('chartCoCultivar'), {
       type:'bar',
@@ -1319,7 +1364,7 @@ function verProdutoNoCentro(id){
   const produto = produtos.find(p=>p.id===id);
   if(produto){ document.getElementById('globalSearch').value = produto.nome; renderProdutos(); }
 }
-['coPeriodo','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
+['coPeriodo','coUnidade','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
   document.getElementById(id).addEventListener('change', renderCentroOperacoes);
 });
 
