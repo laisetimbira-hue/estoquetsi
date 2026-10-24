@@ -1070,7 +1070,7 @@ function initListeners(){
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
     // nomes antigos de cultivar aparecem com o nome certo (Campacta→Compacta, DM65IX67 RSF I2X→Fúria); só na tela, o que está gravado não muda
-    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; return x; });
+    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
     renderLotes(); renderCentroOperacoes();
   }));
   db.collection('usuarios').onSnapshot(snap=>{
@@ -2168,7 +2168,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const loteRef = db.collection('lotesTratamento').doc();
   batch.set(loteRef, {
     cultivar, numeroLote, quantidadeSementes: kg, sobraKg, receitaId: receita.id, receitaNome: receita.nome,
-    operador: document.getElementById('lOperador').value.trim(),
+    operador: (v=>v.toLowerCase()==='c'?'Celso':v)(document.getElementById('lOperador').value.trim()),
     data: document.getElementById('lData').value,
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
