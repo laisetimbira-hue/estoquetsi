@@ -1144,7 +1144,18 @@ const PMS_CULTIVAR = {
   'Vênus':175.2, 'Torque':173.5, 'Fibra':164.9, 'Fera':174.6, 'Fúria':177.2, 'DM59IX61RSF I2X':199.6, 'NEO581 E':183.6, 'C2615CE':163.9, 'Nexus':147.3, 'C2605E':146.5
 };
 const UNIDADES_VOLUME = { kg:{rotulo:'kg', sem:null}, sc:{rotulo:'SC 125k', sem:125000}, bb:{rotulo:'BB 5MM', sem:5000000} };
-function pmsDe(cultivar){ return PMS_CULTIVAR[cultivar] || PMS_CULTIVAR[String(cultivar||'').replace(/\s+/g,'')] || null; }
+function _chavePms(t){ return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+const CODIGO_CULTIVAR = {'51IX51RSF I2X':'Trovão','68K66RSF CE':'Batalha','65IX67RSF I2X':'Fúria','65I65RSF IPRO':'Compacta','64IX66RSF I2X':'Nexus','64IX62RSF I2X':'Fera','64I61RSF IPRO':'Fibra','57K56RSF CE':'Grafeno','53IX55RSF I2X':'Imune','55IX56RSF I2X':'Orion','63E66RSF E':'Raça','50I52RSF IPRO':'Raio','56IX58RSF I2X':'Titanium','57IX60RSF I2X':'Torque','6968RSF':'Valente','57K58RSF CE':'Vênus','55I57RSF IPRO':'Zeus','BMX ATIVA RR':'Ativa','DM65IX67 RSF I2X':'Fúria'};
+function pmsDe(cultivar){
+  if(PMS_CULTIVAR[cultivar]) return PMS_CULTIVAR[cultivar];
+  const k = _chavePms(cultivar); if(!k) return null;
+  const nomes = Object.keys(PMS_CULTIVAR);
+  let n = nomes.find(x=>_chavePms(x)===k);                       // ignora acento, maiúscula, espaço
+  if(!n){ const base = _chavePms(String(cultivar).replace(/\(.*$/,'')); n = nomes.find(x=>_chavePms(x)===base); } // "Trovão (51IX...)" -> "Trovão"
+  if(!n){ const dentro = String(cultivar).match(/\(([^)]*)\)/); if(dentro){ const c=_chavePms(dentro[1]); n = nomes.find(x=>_chavePms(x)===c); } } // código entre parênteses
+  if(!n){ const cn = Object.keys(CODIGO_CULTIVAR).find(c=>_chavePms(c)===k); if(cn) n = CODIGO_CULTIVAR[cn]; } // só o código técnico
+  return n ? PMS_CULTIVAR[n] : null;
+}
 /* converte kg de uma cultivar para a unidade escolhida; null se a cultivar não tem PMS */
 function volumeEm(kg, cultivar, un){
   if(un==='kg') return kg;
