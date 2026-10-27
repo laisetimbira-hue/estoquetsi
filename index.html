@@ -891,6 +891,13 @@ tbody tr:hover{background:#FAFCFA;}
   </div>
 </div>
 
+<div class="modal-overlay" id="modalVerOrdem">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title" id="verOrdemTitulo">Ordem</div><button class="modal-close" onclick="closeModal('modalVerOrdem')">✕</button></div>
+    <div class="modal-body" id="verOrdemCorpo"></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal('modalVerOrdem')">Fechar</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalSobra">
   <div class="modal">
     <div class="modal-head"><div class="modal-title">Sobra de semente tratada</div><button class="modal-close" onclick="closeModal('modalSobra')">✕</button></div>
@@ -2643,9 +2650,47 @@ document.getElementById('btnSalvarSobra').addEventListener('click', ()=>{
 function verLote(id){
   const l = lotes.find(x=>x.id===id);
   if(!l) return;
-  const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
-  const ld = (l.lotesDetalhe||[]).map(x=>'• '+x.origem+(x.destino&&x.destino!==x.origem?' → '+x.destino:'')+': '+fmtNum(x.qtdOrigem)+' '+(x.unidade||'')+' · bag '+fmtNum(x.pesoBag)+' kg · PMS '+fmtNum(x.pms)+' · '+fmtNum(x.kg)+' kg');
-  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')' + (l.produtor?'\nProdutor: '+l.produtor:'') + '\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg' + (ld.length ? '\n\nLotes de semente:\n'+ld.join('\n') : '') + (()=>{ const t=temposDaOrdem(l); if(l.iniciadoEm==null&&l.fechadaEm==null) return ''; return '\n\nTempo:\nImportada: '+fmtHoraTs(l.importadoEm)+'\nIniciada: '+fmtHoraTs(l.iniciadoEm)+'\nFechada: '+fmtHoraTs(l.fechadaEm)+'\nEspera: '+fmtDur(t.espera)+' · Tratamento: '+fmtDur(t.trat)+(t.trat?' · Rendimento: '+Math.round((Number(l.quantidadeSementes)||0)/(t.trat/60)).toLocaleString('pt-BR')+' kg/h':''); })() + '\n\nConsumo:\n' + linhas.join('\n'));
+  const t = temposDaOrdem(l);
+  const campo = (rot, val, largo)=>`<div style="${largo?'grid-column:1/-1;':''}"><div class="kpi-label" style="margin-bottom:2px;">${rot}</div><div style="font-size:14px; font-weight:600;">${val}</div></div>`;
+  const sec = (tit, corpo)=>`<div style="margin-top:20px;"><div style="font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--green-dark); margin-bottom:8px;">${tit}</div>${corpo}</div>`;
+  const metrica = (rot, val)=>`<div style="background:var(--green-soft); border-radius:12px; padding:12px 14px;"><div class="kpi-label" style="margin-bottom:2px;">${rot}</div><div class="kpi-value" style="font-size:20px; color:var(--green-dark);">${val}</div></div>`;
+  const kgTrat = Number(l.quantidadeSementes)||0;
+  const lotesSem = (l.lotesDetalhe||[]);
+  const consumo = (l.itensConsumidos||[]);
+  const temTempo = l.iniciadoEm!=null || l.fechadaEm!=null;
+  document.getElementById('verOrdemTitulo').innerHTML = 'Ordem '+esc(l.numeroLote)+' <span style="font-weight:500; color:var(--text-soft);">· '+esc(l.cultivar)+'</span>';
+  document.getElementById('verOrdemCorpo').innerHTML =
+    `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px 20px;">
+      ${campo('Data', fmtDate(l.data))}
+      ${campo('Cultivar', esc(l.cultivar))}
+      ${campo('Receita', esc(nomeCurtoReceita(l.receitaNome)||'—'))}
+      ${campo('Operador', esc(l.operador||'—'))}
+      ${l.produtor ? campo('Produtor', esc(l.produtor)) : ''}
+      ${campo('Semente tratada', fmtNum(kgTrat)+' kg')}
+      ${campo('Sobra de semente tratada', fmtNum(l.sobraKg||0)+' kg')}
+      ${l.observacaoPdf ? campo('Observação', esc(l.observacaoPdf), true) : ''}
+    </div>`
+    + (lotesSem.length ? sec('Lotes de semente',
+      `<div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px;"><table style="margin:0;"><thead><tr><th>Lote</th><th>Quantidade</th><th>Peso do bag</th><th>PMS</th><th style="text-align:right;">Total</th></tr></thead><tbody>
+        ${lotesSem.map(x=>`<tr><td><b>${esc(x.origem)}</b>${x.destino&&x.destino!==x.origem?'<div style="font-size:11.5px; color:var(--text-mute);">destino: '+esc(x.destino)+'</div>':''}</td>
+          <td>${fmtNum(x.qtdOrigem)} ${esc(x.unidade||'')}</td><td>${fmtNum(x.pesoBag)} kg</td><td>${fmtNum(x.pms)}</td><td style="text-align:right;"><b>${fmtNum(x.kg)} kg</b></td></tr>`).join('')}
+      </tbody></table></div>`) : '')
+    + sec('Tempo', temTempo
+      ? `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;">
+          ${metrica('Espera', fmtDur(t.espera))}
+          ${metrica('Tratamento', fmtDur(t.trat))}
+          ${metrica('Rendimento', t.trat ? Math.round(kgTrat/(t.trat/60)).toLocaleString('pt-BR')+' kg/h' : '—')}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px; font-size:12.5px; color:var(--text-soft);">
+          <span>Importada <b>${fmtHoraTs(l.importadoEm)}</b></span><span>Iniciada <b>${fmtHoraTs(l.iniciadoEm)}</b></span><span>Fechada <b>${fmtHoraTs(l.fechadaEm)}</b></span>
+        </div>`
+      : '<div style="font-size:13px; color:var(--text-mute);">Sem tempo registrado (ordem lançada manualmente ou antes do controle de tempo).</div>')
+    + sec('Consumo de produtos', consumo.length
+      ? `<div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;"><table style="margin:0;"><thead><tr><th>Produto</th><th style="text-align:right;">Quantidade</th></tr></thead><tbody>
+          ${consumo.map(i=>`<tr><td>${esc(i.produtoNome)}</td><td style="text-align:right;"><b>${fmtNum(i.quantidade)}</b> ${esc(i.unidade||'')}</td></tr>`).join('')}
+        </tbody></table></div>`
+      : '<div style="font-size:13px; color:var(--text-mute);">Nenhum consumo registrado.</div>');
+  openModal('modalVerOrdem');
 }
 
 
