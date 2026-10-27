@@ -610,7 +610,7 @@ tbody tr:hover{background:#FAFCFA;}
         <!-- ===== LOTES ===== -->
         <section class="section" id="section-lotes">
           <div class="toolbar">
-            <input type="search" id="buscaLotes" placeholder="Buscar N° da ordem, cultivar, receita, operador..." style="flex:1; min-width:220px; max-width:420px; padding:9px 12px; border:1.5px solid var(--border); border-radius:9px; font-size:13.5px;">
+            <input type="search" id="buscaLotes" placeholder="Buscar N° da ordem, lote, cultivar, receita, operador..." style="flex:1; min-width:220px; max-width:420px; padding:9px 12px; border:1.5px solid var(--border); border-radius:9px; font-size:13.5px;">
             <div class="grow"></div>
             <input type="file" id="pdfOrdens" accept="application/pdf,.pdf" multiple style="display:none;">
             <button class="btn btn-ghost" id="btnNovoImportPdf" title="Importar o PDF da ordem de tratamento do Agro1 (a ordem fica aberta até você fechar)">
@@ -2346,8 +2346,11 @@ function interpretarOrdemPdf(linhas){
   const lr = linhas.find(l=>/Resumo:/i.test(l));
   if(lr){ const nums = lr.match(/[\d.]+,\d+/g); if(nums) kg = paraNumBR(nums[nums.length-1]); }
   const reLote = /^(\S+)\s+(\S+)\s+[\d.,]+\s+[\d.,]+\s+\S+\s+[\d.,]+\s+[\d.,]+\s+([\d.]+,\d+)$/;
-  const lotesOrigem = []; let soma = 0;
-  linhas.forEach(l=>{ const m = l.match(reLote); if(m){ lotesOrigem.push(m[1]); soma += paraNumBR(m[3]); } });
+  const reLoteFull = /^(\S+)\s+(\S+)\s+([\d.,]+)\s+([\d.,]+)\s+(\S+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.]+,\d+)$/;
+  const lotesOrigem = [], lotesDetalhe = []; let soma = 0;
+  linhas.forEach(l=>{ const m = l.match(reLote); if(m){ lotesOrigem.push(m[1]); soma += paraNumBR(m[3]);
+    const f = l.match(reLoteFull);
+    if(f) lotesDetalhe.push({origem:f[1], destino:f[2], pesoBag:paraNumBR(f[3]), pms:paraNumBR(f[4]), unidade:f[5], qtdOrigem:paraNumBR(f[6]), qtdDestino:paraNumBR(f[7]), kg:paraNumBR(f[8])}); } });
   if(!kg) kg = soma || null;
   // produtos e doses
   const pdfProdutos = [];
@@ -2362,23 +2365,30 @@ function interpretarOrdemPdf(linhas){
   const faltas = [];
   if(!numero) faltas.push('número da ordem'); if(!cultivar) faltas.push('cultivar'); if(!tratamento) faltas.push('tratamento'); if(!kg) faltas.push('total de kg');
   if(faltas.length) throw new Error('não achei: '+faltas.join(', '));
-  return {numeroLote:numero, cultivar, tratamentoPdf:tratamento, produtor, data, observacaoPdf:observacao, quantidadeSementes:kg, lotesOrigem:[...new Set(lotesOrigem)], pdfProdutos};
+  return {numeroLote:numero, cultivar, tratamentoPdf:tratamento, produtor, data, observacaoPdf:observacao, quantidadeSementes:kg, lotesOrigem:[...new Set(lotesOrigem)], lotesDetalhe, pdfProdutos};
 }
 document.getElementById('btnNovoImportPdf').addEventListener('click', ()=> document.getElementById('pdfOrdens').click());
 document.getElementById('pdfOrdens').addEventListener('change', async function(){
   const arquivos = [...this.files]; this.value = '';
   if(!arquivos.length) return;
   toast('Lendo '+arquivos.length+' PDF'+(arquivos.length>1?'s':'')+'...');
-  const ok = [], problemas = [];
+  const ok = [], problemas = [], completadas = [];
   const vistos = new Set([...lotes, ...lotesAbertas].map(l=>String(l.numeroLote)));
   for(const f of arquivos){
     try{
       const o = interpretarOrdemPdf(await lerLinhasPdf(f));
-      if(vistos.has(String(o.numeroLote))){ problemas.push(f.name+': a ordem '+o.numeroLote+' já existe no sistema (não importei de novo)'); continue; }
+      if(vistos.has(String(o.numeroLote))){
+        const ex = [...lotes, ...lotesAbertas].find(l=>String(l.numeroLote)===String(o.numeroLote));
+        if(ex && !(ex.lotesDetalhe && ex.lotesDetalhe.length) && o.lotesDetalhe.length){   // ordem já existia sem os lotes de semente: só completa esse dado
+          await db.collection('lotesTratamento').doc(ex.id).update({lotesOrigem:o.lotesOrigem, lotesDetalhe:o.lotesDetalhe, produtor:ex.produtor||o.produtor||''});
+          completadas.push(o.numeroLote);
+        } else problemas.push(f.name+': a ordem '+o.numeroLote+' já existe no sistema (não importei de novo)');
+        continue;
+      }
       await db.collection('lotesTratamento').add({
         status:'aberta', numeroLote:o.numeroLote, cultivar:o.cultivar, quantidadeSementes:o.quantidadeSementes,
         data:o.data || todayISO(), produtor:o.produtor, observacaoPdf:o.observacaoPdf, tratamentoPdf:o.tratamentoPdf,
-        receitaNome:o.tratamentoPdf, lotesOrigem:o.lotesOrigem, pdfProdutos:o.pdfProdutos,
+        receitaNome:o.tratamentoPdf, lotesOrigem:o.lotesOrigem, lotesDetalhe:o.lotesDetalhe, pdfProdutos:o.pdfProdutos,
         sobraKg:0, itensConsumidos:[], operador:'', importadoPor:(currentUserData&&currentUserData.nome)||'Usuário',
         criadoEm: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -2386,6 +2396,7 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
     }catch(e){ problemas.push(f.name+': '+(e && e.message ? e.message : 'erro ao ler')); }
   }
   if(ok.length) toast('Ordem'+(ok.length>1?'s':'')+' '+ok.join(', ')+' importada'+(ok.length>1?'s':'')+' e aberta'+(ok.length>1?'s':'')+' (estoque ainda não baixou)');
+  if(completadas.length) toast('Lotes de semente guardados na ordem '+completadas.join(', '));
   if(problemas.length) alert('Atenção:\n\n• '+problemas.join('\n• '));
 });
 function receitaDaOrdem(o){
@@ -2428,6 +2439,7 @@ function renderAbertas(){
         <div style="flex:1; min-width:240px;">
           <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(o.tratamentoPdf||o.receitaNome||'')}</div>
           <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
+          ${(o.lotesDetalhe&&o.lotesDetalhe.length) ? `<div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">Lotes: ${o.lotesDetalhe.map(x=>esc(x.origem)+(x.destino&&x.destino!==x.origem?' → '+esc(x.destino):'')+' ('+fmtNum(x.kg)+' kg)').join(' · ')}</div>` : ''}
           ${av.length ? `<div style="font-size:12px; color:#8a6100; margin-top:4px;">⚠ ${av.slice(0,4).map(esc).join('<br>⚠ ')}${av.length>4?'<br>… e mais '+(av.length-4):''}</div>` : ''}
         </div>
         ${viewer ? '' : `<div style="display:flex; gap:8px;">
@@ -2475,7 +2487,7 @@ function excluirAberta(id){
 function lotesBuscados(){
   const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
   if(!termo) return lotes;
-  return lotes.filter(l=> [l.numeroLote, l.cultivar, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
+  return lotes.filter(l=> [l.numeroLote, l.cultivar, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.produtor, (l.lotesOrigem||[]).join(' '), (l.lotesDetalhe||[]).map(x=>x.destino).join(' '), l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
 }
 document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes());
 function renderLotes(){
@@ -2538,7 +2550,8 @@ function verLote(id){
   const l = lotes.find(x=>x.id===id);
   if(!l) return;
   const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
-  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg\n\nConsumo:\n' + linhas.join('\n'));
+  const ld = (l.lotesDetalhe||[]).map(x=>'• '+x.origem+(x.destino&&x.destino!==x.origem?' → '+x.destino:'')+': '+fmtNum(x.qtdOrigem)+' '+(x.unidade||'')+' · bag '+fmtNum(x.pesoBag)+' kg · PMS '+fmtNum(x.pms)+' · '+fmtNum(x.kg)+' kg');
+  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')' + (l.produtor?'\nProdutor: '+l.produtor:'') + '\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg' + (ld.length ? '\n\nLotes de semente:\n'+ld.join('\n') : '') + '\n\nConsumo:\n' + linhas.join('\n'));
 }
 
 
