@@ -612,11 +612,17 @@ tbody tr:hover{background:#FAFCFA;}
           <div class="toolbar">
             <input type="search" id="buscaLotes" placeholder="Buscar N° da ordem, cultivar, receita, operador..." style="flex:1; min-width:220px; max-width:420px; padding:9px 12px; border:1.5px solid var(--border); border-radius:9px; font-size:13.5px;">
             <div class="grow"></div>
+            <input type="file" id="pdfOrdens" accept="application/pdf,.pdf" multiple style="display:none;">
+            <button class="btn btn-ghost" id="btnNovoImportPdf" title="Importar o PDF da ordem de tratamento do Agro1 (a ordem fica aberta até você fechar)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6m-3 3 3-3 3 3"/></svg>
+              Importar PDF da ordem
+            </button>
             <button class="btn btn-primary" id="btnNovoLote">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               Tratar novo lote
             </button>
           </div>
+          <div id="abertasBox" style="display:none; margin-bottom:16px;"></div>
           <details class="card sobra-box" id="sobraBox" style="margin-bottom:16px; padding:0;">
             <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; padding:14px 18px;">
               <svg class="sobra-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
@@ -817,7 +823,7 @@ tbody tr:hover{background:#FAFCFA;}
 <!-- ============ MODAL: LOTE / TRATAMENTO ============ -->
 <div class="modal-overlay" id="modalLote">
   <div class="modal modal-lg">
-    <div class="modal-head"><div class="modal-title">Tratar novo lote</div><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
+    <div class="modal-head"><div class="modal-title" id="loteModalTitle">Tratar novo lote</div><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="field"><label>Cultivar</label>
@@ -932,6 +938,8 @@ const db = firebase.firestore();
 let currentUser = null;
 let currentUserData = { nome:'Usuário', perfil:'administrador' };
 let produtos = [];
+let lotesAbertas = [];
+let fechandoOrdemId = null;
 let movimentacoes = [];
 let receitas = [];
 let lotes = [];
@@ -1118,12 +1126,15 @@ function initListeners(){
   }));
   unsubs.push(db.collection('receitas').onSnapshot(snap=>{
     receitas = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    renderReceitas(); fillReceitaSelect(); renderCentroOperacoes();
+    renderReceitas(); fillReceitaSelect(); renderAbertas(); renderCentroOperacoes();
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
     // nomes antigos de cultivar aparecem com o nome certo (Campacta→Compacta, DM65IX67 RSF I2X→Fúria); só na tela, o que está gravado não muda
-    lotes = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
-    renderLotes(); renderCentroOperacoes();
+    const todasOrd = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
+    // ordens ABERTAS (importadas do PDF) ficam à parte: não baixam estoque nem entram nos números do Centro até serem fechadas
+    lotesAbertas = todasOrd.filter(x=>x.status==='aberta');
+    lotes = todasOrd.filter(x=>x.status!=='aberta');
+    renderLotes(); renderAbertas(); renderCentroOperacoes();
   }));
   db.collection('usuarios').onSnapshot(snap=>{
     usuarios = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -2105,6 +2116,9 @@ function fillReceitaSelect(){
 ========================================================= */
 let loteItensAtuais = []; // estado interativo do preview (permite trocar produto substituto)
 document.getElementById('btnNovoLote').addEventListener('click', ()=>{
+  fechandoOrdemId = null;
+  document.getElementById('loteModalTitle').textContent = 'Tratar novo lote';
+  document.getElementById('btnSalvarLote').textContent = 'Confirmar tratamento e baixar estoque';
   fillReceitaSelect();
   document.getElementById('lCultivar').value = 'Zeus';
   document.getElementById('lCultivarManual').value = '';
@@ -2216,15 +2230,17 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const insuficiente = itens.find(i=>!i.suficiente);
   if(insuficiente){ toast('Estoque insuficiente de ' + insuficiente.produtoNome, true); return; }
 
+  if(fechandoOrdemId && !lotesAbertas.some(o=>o.id===fechandoOrdemId)){ toast('Esta ordem não está mais aberta (já foi fechada ou excluída)', true); return; }
   const batch = db.batch();
-  const loteRef = db.collection('lotesTratamento').doc();
-  batch.set(loteRef, {
+  const loteRef = fechandoOrdemId ? db.collection('lotesTratamento').doc(fechandoOrdemId) : db.collection('lotesTratamento').doc();
+  const dadosLote = {
     cultivar, numeroLote, quantidadeSementes: kg, sobraKg, receitaId: receita.id, receitaNome: receita.nome,
     operador: (v=>v.toLowerCase()==='c'?'Celso':v)(document.getElementById('lOperador').value.trim()),
     data: document.getElementById('lData').value,
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  };
+  if(fechandoOrdemId) batch.update(loteRef, {...dadosLote, status:'fechada'}); else batch.set(loteRef, dadosLote);
   itens.forEach(i=>{
     const produto = produtos.find(p=>p.id===i.produtoId);
     const novoSaldo = +(Number(produto.quantidade) - i.consumo).toFixed(3);
@@ -2238,7 +2254,8 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
   });
-  batch.commit().then(()=>{ closeModal('modalLote'); toast('Ordem registrada e estoque atualizado'); })
+  const eraAberta = !!fechandoOrdemId;
+  batch.commit().then(()=>{ fechandoOrdemId = null; closeModal('modalLote'); toast(eraAberta ? 'Ordem fechada e estoque atualizado' : 'Ordem registrada e estoque atualizado'); })
     .catch(()=> toast('Erro ao salvar tratamento do lote', true));
 });
 
@@ -2269,6 +2286,192 @@ function excluirLote(id){
   batch.commit().then(()=>toast('Ordem '+l.numeroLote+' excluída e estoque devolvido'))
     .catch(()=>toast('Erro ao excluir a ordem', true));
 }
+
+/* =========================================================
+   ORDENS ABERTAS — PDF "Ordem de Tratamento de Sementes" do Agro1
+   Importa o PDF → ordem fica ABERTA (sem baixar estoque) → "Fechar ordem" calcula e baixa.
+========================================================= */
+let _pdfjsPromise = null;
+function carregarPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(_pdfjsPromise) return _pdfjsPromise;
+  const fontes = [
+    ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'],
+    ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js']
+  ];
+  _pdfjsPromise = (async()=>{
+    for(const [src, worker] of fontes){
+      try{
+        await new Promise((ok,err)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=ok; sc.onerror=err; document.head.appendChild(sc); });
+        if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = worker; return window.pdfjsLib; }
+      }catch(e){}
+    }
+    _pdfjsPromise = null;
+    throw new Error('Não consegui carregar o leitor de PDF (verifique a internet e tente de novo).');
+  })();
+  return _pdfjsPromise;
+}
+async function lerLinhasPdf(file){
+  const lib = await carregarPdfJs();
+  const pdf = await lib.getDocument({data: await file.arrayBuffer()}).promise;
+  const linhas = [];
+  for(let n=1; n<=pdf.numPages; n++){
+    const tc = await (await pdf.getPage(n)).getTextContent();
+    const itens = tc.items.filter(i=>String(i.str).trim()).map(i=>({t:String(i.str).trim(), x:i.transform[4], y:i.transform[5]}));
+    itens.sort((a,b)=> (b.y-a.y) || (a.x-b.x));
+    let atual = null;
+    itens.forEach(i=>{
+      if(!atual || Math.abs(atual.y-i.y)>3){ atual = {y:i.y, its:[]}; linhas.push(atual); }
+      atual.its.push(i);
+    });
+  }
+  return linhas.map(l=>l.its.sort((a,b)=>a.x-b.x).map(i=>i.t).join(' '));
+}
+function paraNumBR(v){
+  if(v==null) return null; v = String(v).trim(); if(!v || v==='---') return null;
+  const n = parseFloat(v.replace(/\./g,'').replace(',','.')); return isNaN(n) ? null : n;
+}
+function interpretarOrdemPdf(linhas){
+  const txt = linhas.join('\n');
+  if(!/ORDEM DE TRATAMENTO/i.test(txt)) throw new Error('não parece uma "Ordem de Tratamento de Sementes"');
+  const stop = '(?=\\s+(?:Ordem|Produtor|Tratamento|Produto|Cultivar|Peneira|Data|Observa[çc][ãa]o):|\\s*$)';
+  const pega = nome => { const m = txt.match(new RegExp(nome+':\\s*(.+?)'+stop,'m')); return m ? m[1].trim() : ''; };
+  const numero = (txt.match(/Ordem:\s*(\d+)/)||[])[1] || '';
+  const cultivar = pega('Cultivar'), tratamento = pega('Tratamento'), produtor = pega('Produtor');
+  const md = txt.match(/Data:\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  const data = md ? md[3]+'-'+md[2]+'-'+md[1] : '';
+  const observacao = ((txt.match(/Observa[çc][ãa]o:\s*(.+)$/m)||[])[1]||'').trim();
+  // total de kg: linha "Resumo:" (último número); senão, soma das linhas de lote
+  let kg = null;
+  const lr = linhas.find(l=>/Resumo:/i.test(l));
+  if(lr){ const nums = lr.match(/[\d.]+,\d+/g); if(nums) kg = paraNumBR(nums[nums.length-1]); }
+  const reLote = /^(\S+)\s+(\S+)\s+[\d.,]+\s+[\d.,]+\s+\S+\s+[\d.,]+\s+[\d.,]+\s+([\d.]+,\d+)$/;
+  const lotesOrigem = []; let soma = 0;
+  linhas.forEach(l=>{ const m = l.match(reLote); if(m){ lotesOrigem.push(m[1]); soma += paraNumBR(m[3]); } });
+  if(!kg) kg = soma || null;
+  // produtos e doses
+  const pdfProdutos = [];
+  const ini = linhas.findIndex(l=>/Dosagem\s*\(g\)/i.test(l));
+  if(ini>=0) for(let i=ini+1;i<linhas.length;i++){
+    if(/Respons[áa]vel/i.test(linhas[i])) break;
+    const m = linhas[i].match(/^(.+?)\s+(---|[\d.,]+)\s+(---|[\d.,]+)\s+([\d.,]+)$/);
+    if(!m) continue;
+    const g = paraNumBR(m[2]), ml = paraNumBR(m[3]);
+    pdfProdutos.push({nome:m[1].trim(), dose: g!=null ? g : ml, unidadeDose: g!=null ? 'g' : 'ml'});
+  }
+  const faltas = [];
+  if(!numero) faltas.push('número da ordem'); if(!cultivar) faltas.push('cultivar'); if(!tratamento) faltas.push('tratamento'); if(!kg) faltas.push('total de kg');
+  if(faltas.length) throw new Error('não achei: '+faltas.join(', '));
+  return {numeroLote:numero, cultivar, tratamentoPdf:tratamento, produtor, data, observacaoPdf:observacao, quantidadeSementes:kg, lotesOrigem:[...new Set(lotesOrigem)], pdfProdutos};
+}
+document.getElementById('btnNovoImportPdf').addEventListener('click', ()=> document.getElementById('pdfOrdens').click());
+document.getElementById('pdfOrdens').addEventListener('change', async function(){
+  const arquivos = [...this.files]; this.value = '';
+  if(!arquivos.length) return;
+  toast('Lendo '+arquivos.length+' PDF'+(arquivos.length>1?'s':'')+'...');
+  const ok = [], problemas = [];
+  const vistos = new Set([...lotes, ...lotesAbertas].map(l=>String(l.numeroLote)));
+  for(const f of arquivos){
+    try{
+      const o = interpretarOrdemPdf(await lerLinhasPdf(f));
+      if(vistos.has(String(o.numeroLote))){ problemas.push(f.name+': a ordem '+o.numeroLote+' já existe no sistema (não importei de novo)'); continue; }
+      await db.collection('lotesTratamento').add({
+        status:'aberta', numeroLote:o.numeroLote, cultivar:o.cultivar, quantidadeSementes:o.quantidadeSementes,
+        data:o.data || todayISO(), produtor:o.produtor, observacaoPdf:o.observacaoPdf, tratamentoPdf:o.tratamentoPdf,
+        receitaNome:o.tratamentoPdf, lotesOrigem:o.lotesOrigem, pdfProdutos:o.pdfProdutos,
+        sobraKg:0, itensConsumidos:[], operador:'', importadoPor:(currentUserData&&currentUserData.nome)||'Usuário',
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      vistos.add(String(o.numeroLote)); ok.push(o.numeroLote);
+    }catch(e){ problemas.push(f.name+': '+(e && e.message ? e.message : 'erro ao ler')); }
+  }
+  if(ok.length) toast('Ordem'+(ok.length>1?'s':'')+' '+ok.join(', ')+' importada'+(ok.length>1?'s':'')+' e aberta'+(ok.length>1?'s':'')+' (estoque ainda não baixou)');
+  if(problemas.length) alert('Atenção:\n\n• '+problemas.join('\n• '));
+});
+function receitaDaOrdem(o){
+  const alvo = normNome(o.tratamentoPdf || o.receitaNome);
+  return receitas.find(r=>normNome(nomeCurtoReceita(r.nome))===alvo) || receitas.find(r=>normNome(r.nome)===alvo) || null;
+}
+function avisosOrdemAberta(o){
+  const av = [];
+  const r = receitaDaOrdem(o);
+  if(!r){ av.push('Receita "'+(o.tratamentoPdf||'?')+'" não encontrada no app — escolha a receita ao fechar'); return av; }
+  const fmtD = n => String(+Number(n).toFixed(4)).replace('.',',');
+  const usados = new Set();
+  (o.pdfProdutos||[]).forEach(pp=>{
+    const nk = normNome(pp.nome);
+    const idx = r.itens.findIndex((it,i)=>{ if(usados.has(i)) return false; const pr = produtoDoItem(it); const nn = normNome(pr?pr.nome:it.produtoNome); return nn===nk || nn.includes(nk) || nk.includes(nn); });
+    if(idx<0){ av.push(pp.nome+' está no PDF mas não na receita do app'); return; }
+    usados.add(idx);
+    const dApp = Number(getDoseItem(r.itens[idx]))||0;
+    if(Math.abs(dApp-(Number(pp.dose)||0))>0.0005) av.push(pp.nome+': dose no PDF '+fmtD(pp.dose)+' · no app '+fmtD(dApp));
+  });
+  r.itens.forEach((it,i)=>{ if(!usados.has(i) && (o.pdfProdutos||[]).length){ const pr = produtoDoItem(it); av.push((pr?pr.nome:it.produtoNome)+' está na receita do app mas não no PDF'); } });
+  return av;
+}
+function renderAbertas(){
+  const box = document.getElementById('abertasBox');
+  if(!lotesAbertas.length){ box.style.display='none'; box.innerHTML=''; return; }
+  const viewer = (currentUserData && currentUserData.perfil)==='visualizador';
+  const tsA = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
+  const lista = lotesAbertas.slice().sort((a,b)=> (tsA(b)-tsA(a)) || String(b.numeroLote).localeCompare(String(a.numeroLote)));
+  box.style.display = 'block';
+  box.innerHTML = `<div class="card" style="border-color:var(--warn, #e0a800);">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <span class="card-title" style="margin:0;">Ordens abertas</span>
+      <span style="background:#fff4d6; color:#8a6100; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700;">${lista.length}</span>
+      <span style="margin-left:auto; font-size:12.5px; color:var(--text-soft);">O estoque só baixa quando você fechar a ordem</span>
+    </div>
+    ${lista.map(o=>{
+      const av = avisosOrdemAberta(o);
+      return `<div style="border-top:1px solid var(--border); padding:10px 0; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex:1; min-width:240px;">
+          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(o.tratamentoPdf||o.receitaNome||'')}</div>
+          <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
+          ${av.length ? `<div style="font-size:12px; color:#8a6100; margin-top:4px;">⚠ ${av.slice(0,4).map(esc).join('<br>⚠ ')}${av.length>4?'<br>… e mais '+(av.length-4):''}</div>` : ''}
+        </div>
+        ${viewer ? '' : `<div style="display:flex; gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick='fecharOrdem("${o.id}")'>Fechar ordem</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick='excluirAberta("${o.id}")' title="Excluir esta ordem aberta (não mexe no estoque)">Excluir</button>
+        </div>`}
+      </div>`; }).join('')}
+  </div>`;
+}
+function cultivarParaOpcao(c){
+  const vals = [...document.getElementById('lCultivar').options].map(o=>o.value).filter(v=>v!=='Outro');
+  if(vals.includes(c)) return c;
+  const k = _chavePms(c);
+  let v = vals.find(x=>_chavePms(x)===k);
+  if(!v){ const cn = Object.keys(CODIGO_CULTIVAR).find(x=>_chavePms(x)===k); if(cn && vals.includes(CODIGO_CULTIVAR[cn])) v = CODIGO_CULTIVAR[cn]; }
+  return v || null;
+}
+function fecharOrdem(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
+  fechandoOrdemId = id;
+  document.getElementById('loteModalTitle').textContent = 'Fechar ordem '+o.numeroLote;
+  document.getElementById('btnSalvarLote').textContent = 'Fechar ordem e baixar estoque';
+  fillReceitaSelect();
+  const r = receitaDaOrdem(o);
+  if(r) document.getElementById('lReceita').value = r.id; else toast('Receita "'+(o.tratamentoPdf||'')+'" não encontrada — escolha a receita', true);
+  const opt = cultivarParaOpcao(o.cultivar);
+  document.getElementById('lCultivar').value = opt || 'Outro';
+  document.getElementById('lCultivarManual').value = opt ? '' : o.cultivar;
+  document.getElementById('lCultivarManual').style.display = opt ? 'none' : 'block';
+  document.getElementById('lLote').value = o.numeroLote;
+  document.getElementById('lQuantidade').value = o.quantidadeSementes;
+  document.getElementById('lSobra').value = '';
+  document.getElementById('lOperador').value = '';
+  document.getElementById('lData').value = o.data || todayISO();
+  loteItensAtuais = [];
+  calcularConsumoLote();
+  openModal('modalLote');
+}
+function excluirAberta(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
+  if(!confirm('Excluir a ordem aberta '+o.numeroLote+' ('+o.cultivar+', '+fmtNum(o.quantidadeSementes)+' kg)?\n\nO estoque não muda, porque ela ainda não foi fechada.')) return;
+  db.collection('lotesTratamento').doc(id).delete().then(()=>toast('Ordem '+o.numeroLote+' excluída')).catch(()=>toast('Erro ao excluir a ordem', true));
+}
+
 function lotesBuscados(){
   const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
   if(!termo) return lotes;
