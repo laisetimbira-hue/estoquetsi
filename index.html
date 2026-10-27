@@ -2077,7 +2077,9 @@ const IMPORT_RECEITAS = [
   ['TREVO',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',1],['ACRESCENT RAIZ F PLUS',1]]],
   ['TREVO+LV',[['LUMITREO',0.3],['DERMACOR',0.5],['LUMIALZA',0.2],['ENDOFUSE',0.2],['F028',2],['DISCO RED L-1135',1],['BIOFIX PREMIUM',2.5],['PROTETOR PREMIUM',0.7],['ACRESCENT RAIZ F PLUS',1]]]
 ];
-function normNome(n){ return (n||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9+]/g,''); }
+/* Nomes diferentes do MESMO produto (só na hora de comparar; cadastro e dados não mudam). Chave e valor sem espaço/hífen, em maiúsculas. */
+const ALIAS_PRODUTO = { 'FLUIDUS028':'F028' };
+function normNome(n){ const k = (n||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9+]/g,''); return ALIAS_PRODUTO[k] || k; }
 function planoImportacao(){
   const prodExist = {}; produtos.forEach(p=>{ prodExist[normNome(p.nome)] = p; });
   const recExist = new Set(receitas.map(r=>normNome(r.nome)));
