@@ -521,6 +521,16 @@ tbody tr:hover{background:#FAFCFA;}
             </div>
           </div>
 
+          <div style="margin-bottom:18px;">
+            <div class="card">
+              <div class="card-head"><div class="card-title">Tempo de tratamento</div>
+                <select id="coTempoAgrupar" class="chip-filter" style="border:1.5px solid var(--border); background:var(--surface); margin-left:auto;">
+                  <option value="receita">Por receita</option><option value="cultivar">Por cultivar</option><option value="operador">Por operador</option>
+                </select></div>
+              <div id="coTempo"></div>
+            </div>
+          </div>
+
           <div class="grid-2" style="margin-bottom:18px;">
             <div class="card">
               <div class="card-head"><div class="card-title">Consumo de produtos (litros e kg)</div></div>
@@ -1433,7 +1443,59 @@ function renderCentroOperacoes(){
       <div style="display:flex; justify-content:space-between; font-size:13px;"><b>${esc(r.nome)}</b><span>${r.usos}x · ${r.sementes.toLocaleString('pt-BR')} kg</span></div>
       <div class="progress-bar"><div class="progress-fill" style="width:${Math.round(r.usos/maxUsos*100)}%;"></div></div>
     </div>`).join('') : '<p style="color:var(--text-mute); font-size:13px;">Nenhuma ordem de tratamento no período — mude o período lá em cima.</p>';
+  renderTempoCentro(lotesF);
 }
+
+/* =========================================================
+   TEMPO DE TRATAMENTO (espera, tratamento, rendimento)
+   importadoEm (PDF importado) → iniciadoEm (botão Iniciar) → fechadaEm (Fechar ordem)
+========================================================= */
+function _seg(t){ return t && t.seconds!=null ? t.seconds : (t && typeof t.toMillis==='function' ? t.toMillis()/1000 : null); }
+function temposDaOrdem(l){
+  const imp=_seg(l.importadoEm), ini=_seg(l.iniciadoEm), fim=_seg(l.fechadaEm);
+  return { espera: (imp!=null && ini!=null && ini>=imp) ? (ini-imp)/60 : null,
+           trat:   (ini!=null && fim!=null && fim>ini) ? (fim-ini)/60 : null };
+}
+function fmtDur(min){
+  if(min==null || isNaN(min)) return '—';
+  min = Math.round(min);
+  if(min<60) return min+' min';
+  const h = Math.floor(min/60), m = min%60;
+  if(h>=24) return Math.floor(h/24)+'d '+(h%24)+'h';
+  return h+'h'+(m? String(m).padStart(2,'0') : '');
+}
+function fmtHoraTs(t){
+  const sg = _seg(t); if(sg==null) return '—';
+  return new Date(sg*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+function renderTempoCentro(lotesF){
+  const el = document.getElementById('coTempo'); if(!el) return;
+  const por = document.getElementById('coTempoAgrupar').value;
+  const chave = l => por==='cultivar' ? (l.cultivar||'—') : por==='operador' ? (l.operador||'—') : nomeCurtoReceita(l.receitaNome)||'—';
+  const grupos = {};
+  const somar = (g, l, t)=>{
+    if(t.espera!=null){ g.esperaSoma += t.espera; g.esperaN++; }
+    if(t.trat!=null){ g.tratSoma += t.trat; g.tratN++; g.kg += Number(l.quantidadeSementes)||0; }
+  };
+  const mk = n=>({nome:n, esperaSoma:0, esperaN:0, tratSoma:0, tratN:0, kg:0});
+  const geral = mk('Geral');
+  lotesF.forEach(l=>{ const t = temposDaOrdem(l); if(t.espera==null && t.trat==null) return; const k = chave(l); (grupos[k] = grupos[k]||mk(k)); somar(grupos[k], l, t); somar(geral, l, t); });
+  const linhas = Object.values(grupos).sort((a,b)=>b.tratN-a.tratN || a.nome.localeCompare(b.nome,'pt-BR'));
+  if(!linhas.length){
+    el.innerHTML = '<p style="color:var(--text-mute); font-size:13px;">Ainda não há ordens com tempo registrado neste período. Importe o PDF da ordem, clique em <b>Iniciar tratamento</b> e depois em <b>Fechar ordem</b>.</p>';
+    return;
+  }
+  const rend = g => g.tratSoma>0 ? g.kg/(g.tratSoma/60) : null;
+  const lin = (g, forte)=>`<tr${forte?' style="background:var(--green-soft); font-weight:700;"':''}>
+    <td>${esc(g.nome)}</td><td>${Math.max(g.tratN,g.esperaN)}</td><td>${fmtDur(g.esperaN? g.esperaSoma/g.esperaN : null)}</td>
+    <td>${fmtDur(g.tratN? g.tratSoma/g.tratN : null)}</td><td>${rend(g)!=null ? Math.round(rend(g)).toLocaleString('pt-BR')+' kg/h' : '—'}</td></tr>`;
+  el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;"><thead><tr>
+    <th>${por==='cultivar'?'Cultivar':por==='operador'?'Operador':'Receita'}</th><th>Ordens</th><th>Espera média</th><th>Tratamento médio</th><th>Rendimento</th></tr></thead>
+    <tbody>${lin(geral,true)}${linhas.map(g=>lin(g,false)).join('')}</tbody></table></div>
+    <div style="font-size:11.5px; color:var(--text-mute); margin-top:8px;">Espera = do PDF importado até iniciar · Tratamento = do início até fechar a ordem · Rendimento = kg tratados ÷ horas de tratamento</div>`;
+}
+document.getElementById('coTempoAgrupar').addEventListener('change', ()=>renderTempoCentro(lotesFiltrados()));
+
 function verProdutoNoCentro(id){
   document.querySelector('.nav-item[data-section="produtos"]').click();
   const produto = produtos.find(p=>p.id===id);
@@ -2240,7 +2302,12 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
   };
-  if(fechandoOrdemId) batch.update(loteRef, {...dadosLote, status:'fechada'}); else batch.set(loteRef, dadosLote);
+  if(fechandoOrdemId){
+    const ord = lotesAbertas.find(o=>o.id===fechandoOrdemId) || {};
+    const upd = {...dadosLote, status:'fechada', fechadaEm: firebase.firestore.FieldValue.serverTimestamp()};
+    const imp = ord.importadoEm || ord.criadoEm; if(imp) upd.importadoEm = imp;   // criadoEm é regravado ao fechar; guarda o horário da importação
+    batch.update(loteRef, upd);
+  } else batch.set(loteRef, dadosLote);
   itens.forEach(i=>{
     const produto = produtos.find(p=>p.id===i.produtoId);
     const novoSaldo = +(Number(produto.quantidade) - i.consumo).toFixed(3);
@@ -2390,6 +2457,7 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
         data:o.data || todayISO(), produtor:o.produtor, observacaoPdf:o.observacaoPdf, tratamentoPdf:o.tratamentoPdf,
         receitaNome:o.tratamentoPdf, lotesOrigem:o.lotesOrigem, lotesDetalhe:o.lotesDetalhe, pdfProdutos:o.pdfProdutos,
         sobraKg:0, itensConsumidos:[], operador:'', importadoPor:(currentUserData&&currentUserData.nome)||'Usuário',
+        importadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         criadoEm: firebase.firestore.FieldValue.serverTimestamp()
       });
       vistos.add(String(o.numeroLote)); ok.push(o.numeroLote);
@@ -2420,6 +2488,7 @@ function avisosOrdemAberta(o){
   r.itens.forEach((it,i)=>{ if(!usados.has(i) && (o.pdfProdutos||[]).length){ const pr = produtoDoItem(it); av.push((pr?pr.nome:it.produtoNome)+' está na receita do app mas não no PDF'); } });
   return av;
 }
+setInterval(()=>{ if(lotesAbertas.length) renderAbertas(); }, 60000);
 function renderAbertas(){
   const box = document.getElementById('abertasBox');
   if(!lotesAbertas.length){ box.style.display='none'; box.innerHTML=''; return; }
@@ -2439,10 +2508,18 @@ function renderAbertas(){
         <div style="flex:1; min-width:240px;">
           <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(o.tratamentoPdf||o.receitaNome||'')}</div>
           <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
+          <div style="font-size:12.5px; margin-top:3px; color:var(--text-soft);">${(()=>{
+            const imp = _seg(o.importadoEm || o.criadoEm), ini = _seg(o.iniciadoEm), agora = Date.now()/1000;
+            const imps = imp!=null ? 'Importada '+fmtHoraTs(o.importadoEm || o.criadoEm) : '';
+            if(ini!=null) return imps+' · <b style="color:var(--green-dark);">▶ Em tratamento desde '+fmtHoraTs(o.iniciadoEm)+' (há '+fmtDur((agora-ini)/60)+')</b> · espera '+fmtDur(imp!=null?(ini-imp)/60:null);
+            return imps+(imp!=null?' · <b>aguardando início há '+fmtDur((agora-imp)/60)+'</b>':'');
+          })()}</div>
           ${(o.lotesDetalhe&&o.lotesDetalhe.length) ? `<div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">Lotes: ${o.lotesDetalhe.map(x=>esc(x.origem)+(x.destino&&x.destino!==x.origem?' → '+esc(x.destino):'')+' ('+fmtNum(x.kg)+' kg)').join(' · ')}</div>` : ''}
           ${av.length ? `<div style="font-size:12px; color:#8a6100; margin-top:4px;">⚠ ${av.slice(0,4).map(esc).join('<br>⚠ ')}${av.length>4?'<br>… e mais '+(av.length-4):''}</div>` : ''}
         </div>
         ${viewer ? '' : `<div style="display:flex; gap:8px;">
+          ${o.iniciadoEm ? `<button class="btn btn-ghost btn-sm" onclick='ajustarInicio("${o.id}")' title="Corrigir o horário em que o tratamento começou">Ajustar início</button>`
+                         : `<button class="btn btn-ghost btn-sm" style="border-color:var(--green); color:var(--green-dark); font-weight:700;" onclick='iniciarOrdem("${o.id}")'>▶ Iniciar tratamento</button>`}
           <button class="btn btn-primary btn-sm" onclick='fecharOrdem("${o.id}")'>Fechar ordem</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick='excluirAberta("${o.id}")' title="Excluir esta ordem aberta (não mexe no estoque)">Excluir</button>
         </div>`}
@@ -2477,6 +2554,23 @@ function fecharOrdem(id){
   loteItensAtuais = [];
   calcularConsumoLote();
   openModal('modalLote');
+  if(!o.iniciadoEm) toast('Esta ordem não foi iniciada — o tempo de tratamento dela não será medido', true);
+}
+function iniciarOrdem(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o || o.iniciadoEm) return;
+  db.collection('lotesTratamento').doc(id).update({iniciadoEm: firebase.firestore.FieldValue.serverTimestamp(), iniciadoPor:(currentUserData&&currentUserData.nome)||'Usuário'})
+    .then(()=>toast('Tratamento da ordem '+o.numeroLote+' iniciado — o relógio está contando')).catch(()=>toast('Erro ao iniciar', true));
+}
+function ajustarInicio(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o || !o.iniciadoEm) return;
+  const atual = new Date(_seg(o.iniciadoEm)*1000);
+  const hhmm = String(atual.getHours()).padStart(2,'0')+':'+String(atual.getMinutes()).padStart(2,'0');
+  const v = prompt('Horário em que o tratamento da ordem '+o.numeroLote+' realmente começou (HH:MM, no dia '+atual.toLocaleDateString('pt-BR')+'):', hhmm);
+  if(v==null) return;
+  const m = v.trim().match(/^(\d{1,2})[:h](\d{2})$/);
+  if(!m || +m[1]>23 || +m[2]>59){ toast('Horário inválido. Use HH:MM, por exemplo 09:30', true); return; }
+  const novo = new Date(atual); novo.setHours(+m[1], +m[2], 0, 0);
+  db.collection('lotesTratamento').doc(id).update({iniciadoEm: firebase.firestore.Timestamp.fromDate(novo)}).then(()=>toast('Horário de início ajustado')).catch(()=>toast('Erro ao ajustar', true));
 }
 function excluirAberta(id){
   const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
@@ -2551,7 +2645,7 @@ function verLote(id){
   if(!l) return;
   const linhas = (l.itensConsumidos||[]).map(i=>i.produtoNome+': '+fmtNum(i.quantidade)+' '+i.unidade);
   const ld = (l.lotesDetalhe||[]).map(x=>'• '+x.origem+(x.destino&&x.destino!==x.origem?' → '+x.destino:'')+': '+fmtNum(x.qtdOrigem)+' '+(x.unidade||'')+' · bag '+fmtNum(x.pesoBag)+' kg · PMS '+fmtNum(x.pms)+' · '+fmtNum(x.kg)+' kg');
-  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')' + (l.produtor?'\nProdutor: '+l.produtor:'') + '\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg' + (ld.length ? '\n\nLotes de semente:\n'+ld.join('\n') : '') + '\n\nConsumo:\n' + linhas.join('\n'));
+  alert('Ordem ' + l.numeroLote + ' (' + l.cultivar + ')' + (l.produtor?'\nProdutor: '+l.produtor:'') + '\nSobra de semente tratada: ' + fmtNum(l.sobraKg||0) + ' kg' + (ld.length ? '\n\nLotes de semente:\n'+ld.join('\n') : '') + (()=>{ const t=temposDaOrdem(l); if(l.iniciadoEm==null&&l.fechadaEm==null) return ''; return '\n\nTempo:\nImportada: '+fmtHoraTs(l.importadoEm)+'\nIniciada: '+fmtHoraTs(l.iniciadoEm)+'\nFechada: '+fmtHoraTs(l.fechadaEm)+'\nEspera: '+fmtDur(t.espera)+' · Tratamento: '+fmtDur(t.trat)+(t.trat?' · Rendimento: '+Math.round((Number(l.quantidadeSementes)||0)/(t.trat/60)).toLocaleString('pt-BR')+' kg/h':''); })() + '\n\nConsumo:\n' + linhas.join('\n'));
 }
 
 
