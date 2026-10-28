@@ -917,6 +917,13 @@ tbody tr:hover{background:#FAFCFA;}
   </div>
 </div>
 
+<div class="modal-overlay" id="modalSementes">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title" id="semTitulo">Sementes tratadas</div><button class="modal-close" onclick="closeModal('modalSementes')">✕</button></div>
+    <div class="modal-body" id="semCorpo"></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal('modalSementes')">Fechar</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalVerOrdem">
   <div class="modal modal-lg">
     <div class="modal-head"><div class="modal-title" id="verOrdemTitulo">Ordem</div><button class="modal-close" onclick="closeModal('modalVerOrdem')">✕</button></div>
@@ -982,6 +989,7 @@ let currentUser = null;
 let currentUserData = { nome:'Usuário', perfil:'administrador' };
 let produtos = [];
 let lotesAbertas = [];
+let ultimoLotesF = [];
 let fechandoOrdemId = null;
 let movimentacoes = [];
 let receitas = [];
@@ -1392,7 +1400,8 @@ function renderCentroOperacoes(){
     if(sc==null){ semPms[l.cultivar]=1; kgSemPms += kg; } else { totSc += sc; totBb += volumeEm(kg, l.cultivar, 'bb'); }
   });
   const nomesSem = Object.keys(semPms);
-  const kpiSementes = {label:'Sementes tratadas', value: sementesTratadas.toLocaleString('pt-BR')+' kg', icon:'seed', color:'var(--green)',
+  ultimoLotesF = lotesF;
+  const kpiSementes = {clique:'abrirDetalheSementes()', label:'Sementes tratadas', value: sementesTratadas.toLocaleString('pt-BR')+' kg', icon:'seed', color:'var(--green)',
     subHtml: '<b style="color:var(--green-dark);">'+fmtVolume(totSc,'sc')+' SC</b> <span style="color:var(--text-mute);">125k</span> · <b style="color:var(--green-dark);">'+fmtVolume(totBb,'bb')+' BB</b> <span style="color:var(--text-mute);">5MM</span>'
       + (nomesSem.length ? '<div style="color:var(--warn-text); font-size:11px; margin-top:2px;">sem PMS: '+nomesSem.map(esc).join(', ')+' ('+Math.round(kgSemPms).toLocaleString('pt-BR')+' kg fora da conta)</div>' : '')};
   const kpis = [
@@ -1406,9 +1415,9 @@ function renderCentroOperacoes(){
     {label:'Receitas em uso', value: receitasEmUso.size, icon:'receipt', color:'var(--green)'}
   ];
   document.getElementById('coKpiGrid').innerHTML = kpis.map(k=>`
-    <div class="kpi-card">
+    <div class="kpi-card"${k.clique?` onclick="${k.clique}" style="cursor:pointer;" title="Clique para ver de onde vêm esses números"`:''}>
       <div class="kpi-ring">${ringSvg(100, k.color)}<div class="kpi-ring-icon" style="color:${k.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[k.icon]}</svg></div></div>
-      <div class="kpi-body"><div class="kpi-label">${k.label}</div><div class="kpi-value ${k.cls||''}">${k.value}</div>${k.subHtml?`<div class="kpi-sub" style="font-size:13px;">${k.subHtml}</div>`:(k.sub?`<div class="kpi-sub">${esc(k.sub)}</div>`:'')}</div>
+      <div class="kpi-body"><div class="kpi-label">${k.label}${k.clique?' <span style="color:var(--green); text-transform:none; letter-spacing:0; font-weight:700;">· ver detalhes ›</span>':''}</div><div class="kpi-value ${k.cls||''}">${k.value}</div>${k.subHtml?`<div class="kpi-sub" style="font-size:13px;">${k.subHtml}</div>`:(k.sub?`<div class="kpi-sub">${esc(k.sub)}</div>`:'')}</div>
     </div>`).join('');
 
 
@@ -1533,6 +1542,44 @@ function renderTempoCentro(lotesF){
     <div style="font-size:11.5px; color:var(--text-mute); margin-top:8px;">Espera = do PDF importado até iniciar · Tratamento = do início até fechar a ordem · Rendimento = kg tratados ÷ horas de tratamento</div>`;
 }
 document.getElementById('coTempoAgrupar').addEventListener('change', ()=>renderTempoCentro(lotesFiltrados()));
+
+
+function abrirDetalheSementes(){
+  const lista = ultimoLotesF || [];
+  const per = document.getElementById('coPeriodo');
+  const rotPer = per.options[per.selectedIndex] ? per.options[per.selectedIndex].text : '';
+  const por = {};
+  let tKg=0, tSc=0, tBb=0, semPms=0;
+  lista.forEach(l=>{
+    const kg = Number(l.quantidadeSementes)||0, sc = volumeEm(kg,l.cultivar,'sc'), bb = volumeEm(kg,l.cultivar,'bb');
+    const g = por[l.cultivar||'—'] = por[l.cultivar||'—'] || {nome:l.cultivar||'—', ordens:0, kg:0, sc:0, bb:0, semPms:false};
+    g.ordens++; g.kg += kg; tKg += kg;
+    if(sc==null){ g.semPms = true; semPms += kg; } else { g.sc += sc; g.bb += bb; tSc += sc; tBb += bb; }
+  });
+  const grupos = Object.values(por).sort((a,b)=>b.kg-a.kg);
+  document.getElementById('semTitulo').innerHTML = 'Sementes tratadas <span style="font-weight:500; color:var(--text-soft);">· '+esc(rotPer)+'</span>';
+  const metrica = (rot,val)=>`<div style="background:var(--green-soft); border-radius:12px; padding:12px 14px;"><div class="kpi-label" style="margin-bottom:2px;">${rot}</div><div class="kpi-value" style="font-size:20px; color:var(--green-dark);">${val}</div></div>`;
+  const sec = (tit, corpo)=>`<div style="margin-top:20px;"><div style="font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--green-dark); margin-bottom:8px;">${tit}</div>${corpo}</div>`;
+  if(!lista.length){ document.getElementById('semCorpo').innerHTML = '<p style="color:var(--text-mute); font-size:13.5px;">Nenhuma ordem de tratamento neste período. Mude o período no filtro lá em cima.</p>'; openModal('modalSementes'); return; }
+  const tsL = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
+  document.getElementById('semCorpo').innerHTML =
+    `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;">
+      ${metrica('Quilos', fmtNum(tKg)+' kg')}${metrica('Sacos (125 mil)', fmtVolume(tSc,'sc')+' SC')}${metrica('Bags (5 milhões)', fmtVolume(tBb,'bb')+' BB')}${metrica('Ordens', lista.length)}
+    </div>`
+    + (semPms ? `<div style="font-size:12.5px; color:var(--warn-text); background:var(--warn-soft); border-radius:10px; padding:8px 12px; margin-top:10px;">Sem PMS cadastrado: ${grupos.filter(g=>g.semPms).map(g=>esc(g.nome)).join(', ')} — ${fmtNum(semPms)} kg ficaram fora da conta de sacos e bags.</div>` : '')
+    + sec('Por cultivar',
+      `<div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px;"><table style="margin:0;"><thead><tr><th>Cultivar</th><th>Ordens</th><th>PMS</th><th style="text-align:right;">Kg</th><th style="text-align:right;">Sacos</th><th style="text-align:right;">Bags</th></tr></thead><tbody>
+      ${grupos.map(g=>`<tr><td><b>${esc(g.nome)}</b></td><td>${g.ordens}</td><td>${pmsDe(g.nome)!=null?fmtNum(pmsDe(g.nome)):'—'}</td><td style="text-align:right;">${fmtNum(g.kg)}</td><td style="text-align:right;">${g.semPms&&!g.sc?'—':fmtVolume(g.sc,'sc')}</td><td style="text-align:right;">${g.semPms&&!g.bb?'—':fmtVolume(g.bb,'bb')}</td></tr>`).join('')}
+      <tr style="background:var(--green-soft); font-weight:700;"><td>Total</td><td>${lista.length}</td><td></td><td style="text-align:right;">${fmtNum(tKg)}</td><td style="text-align:right;">${fmtVolume(tSc,'sc')}</td><td style="text-align:right;">${fmtVolume(tBb,'bb')}</td></tr>
+      </tbody></table></div>`)
+    + sec('Por ordem',
+      `<div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px;"><table style="margin:0;"><thead><tr><th>Ordem</th><th>Data</th><th>Cultivar</th><th style="text-align:right;">Kg</th><th style="text-align:right;">Sacos</th><th style="text-align:right;">Bags</th></tr></thead><tbody>
+      ${lista.slice().sort((a,b)=>tsL(b)-tsL(a)).map(l=>{ const kg=Number(l.quantidadeSementes)||0, sc=volumeEm(kg,l.cultivar,'sc'), bb=volumeEm(kg,l.cultivar,'bb');
+        return `<tr><td><b>${esc(l.numeroLote)}</b></td><td>${fmtDate(l.data)}</td><td>${esc(l.cultivar)}</td><td style="text-align:right;">${fmtNum(kg)}</td><td style="text-align:right;">${sc==null?'—':fmtVolume(sc,'sc')}</td><td style="text-align:right;">${bb==null?'—':fmtVolume(bb,'bb')}</td></tr>`; }).join('')}
+      </tbody></table></div>`)
+    + '<div style="font-size:11.5px; color:var(--text-mute); margin-top:10px;">Sacos e bags calculados pelo PMS de cada cultivar: SC = 125 mil sementes · BB = 5 milhões de sementes.</div>';
+  openModal('modalSementes');
+}
 
 function verProdutoNoCentro(id){
   document.querySelector('.nav-item[data-section="produtos"]').click();
