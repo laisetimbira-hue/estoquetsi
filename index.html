@@ -1695,7 +1695,7 @@ function acOrdensPendentes(prod){
   // ordens cuja receita (hoje) usa o produto e que não têm esse produto em itensConsumidos
   const res = [];
   lotes.forEach(l=>{
-    const rec = receitas.find(r=>r.id===l.receitaId) || receitas.find(r=>normNome(r.nome)===normNome(l.receitaNome));
+    const rec = receitas.find(r=>r.id===l.receitaId) || receitas.find(r=>normReceita(r.nome)===normReceita(l.receitaNome));
     if(!rec) return;
     const item = (rec.itens||[]).find(i=>{ const pr = produtoDoItem(i); return pr ? pr.id===prod.id : normNome(i.produtoNome)===normNome(prod.nome); });
     if(!item) return;
@@ -1876,7 +1876,7 @@ function duplicarReceita(id){
 }
 document.getElementById('btnAddRecipeItem').addEventListener('click', ()=>addRecipeItemRow());
 /* Restaurar composição original (lista da safra 2025/2026): só preenche o formulário, não grava nada */
-function receitaOriginalDe(nome){ return IMPORT_RECEITAS.find(r=>normNome(r[0])===normNome(nome)); }
+function receitaOriginalDe(nome){ return IMPORT_RECEITAS.find(r=>normReceita(r[0])===normReceita(nome)); }
 function receitaDifereDoOriginal(r){
   const orig = receitaOriginalDe(r.nome); if(!orig) return false;
   const atuais = new Map((r.itens||[]).map(i=>[normNome(i.produtoNome), Number(getDoseItem(i))]));
@@ -2082,7 +2082,7 @@ const ALIAS_PRODUTO = { 'FLUIDUS028':'F028' };
 function normNome(n){ const k = (n||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9+]/g,''); return ALIAS_PRODUTO[k] || k; }
 function planoImportacao(){
   const prodExist = {}; produtos.forEach(p=>{ prodExist[normNome(p.nome)] = p; });
-  const recExist = new Set(receitas.map(r=>normNome(r.nome)));
+  const recExist = new Set(receitas.map(r=>normReceita(r.nome)));
   const novosProdutos = Object.keys(IMPORT_PRODUTOS).filter(n=>!prodExist[normNome(n)]);
   const avisos = [];
   Object.keys(IMPORT_PRODUTOS).forEach(n=>{
@@ -2091,9 +2091,9 @@ function planoImportacao(){
       avisos.push(n+': no seu cadastro está em '+ex.unidade+', mas a receita usa '+(IMPORT_PRODUTOS[n].un==='kg'?'g/kg':'mL/kg')+'. Confira a unidade do produto.');
     }
   });
-  const novasReceitas = IMPORT_RECEITAS.filter(r=>!recExist.has(normNome(r[0])));
-  const recDocs = {}; receitas.forEach(r=>{ recDocs[normNome(r.nome)] = r; });
-  const puladas = IMPORT_RECEITAS.filter(r=>recExist.has(normNome(r[0]))).map(r=>r[0]);
+  const novasReceitas = IMPORT_RECEITAS.filter(r=>!recExist.has(normReceita(r[0])));
+  const recDocs = {}; receitas.forEach(r=>{ recDocs[normReceita(r.nome)] = r; });
+  const puladas = IMPORT_RECEITAS.filter(r=>recExist.has(normReceita(r[0]))).map(r=>r[0]);
   return {prodExist, novosProdutos, novasReceitas, puladas, avisos, recDocs};
 }
 document.getElementById('btnImportReceitas').addEventListener('click', ()=>{
@@ -2135,7 +2135,7 @@ document.getElementById('btnConfirmImport').addEventListener('click', async ()=>
     alvo.forEach(r=>{
       const itens = r[1].map(i=>{ const m = mapa[normNome(i[0])];
         return {produtoId:m.id, produtoNome:m.nome, unidade:m.unidade, ingredienteAtivo:m.ingredienteAtivo, dosePorKg:i[1]}; });
-      const existente = pl.recDocs[normNome(r[0])];
+      const existente = pl.recDocs[normReceita(r[0])];
       if(existente) batch.update(db.collection('receitas').doc(existente.id), {itens, observacoes:'Soja — Safra 2025/2026'});
       else batch.set(db.collection('receitas').doc(), {nome:r[0], itens, observacoes:'Soja — Safra 2025/2026', criadoEm:ts});
     });
@@ -2207,7 +2207,9 @@ document.getElementById('btnConfirmZerar').addEventListener('click', async ()=>{
   }
   btn.textContent = 'Apagar tudo';
 });
-function nomeCurtoReceita(n){ return (n||'').replace(/^\s*TSI\s+/i,'').trim(); }
+function nomeCurtoReceita(n){ return (n||'').replace(/^\s*TSI(?:[\s\-_:]+|$)/i,'').trim(); }
+/* compara nomes de receita ignorando o "TSI" do começo (o Agro1 escreve "TSI B+L+LV", o app às vezes só "B+L+LV") */
+function normReceita(n){ return normNome(nomeCurtoReceita(n)); }
 function fillReceitaSelect(){
   const sel = document.getElementById('lReceita');
   const anterior = sel.value;
@@ -2511,8 +2513,8 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
   if(problemas.length) alert('Atenção:\n\n• '+problemas.join('\n• '));
 });
 function receitaDaOrdem(o){
-  const alvo = normNome(o.tratamentoPdf || o.receitaNome);
-  return receitas.find(r=>normNome(nomeCurtoReceita(r.nome))===alvo) || receitas.find(r=>normNome(r.nome)===alvo) || null;
+  const alvo = normReceita(o.tratamentoPdf || o.receitaNome);
+  return receitas.find(r=>normReceita(r.nome)===alvo) || null;
 }
 function avisosOrdemAberta(o){
   const av = [];
@@ -2549,7 +2551,7 @@ function renderAbertas(){
       const av = avisosOrdemAberta(o);
       return `<div style="border-top:1px solid var(--border); padding:10px 0; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex:1; min-width:240px;">
-          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(o.tratamentoPdf||o.receitaNome||'')}</div>
+          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))}</div>
           <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
           <div style="font-size:12.5px; margin-top:3px; color:var(--text-soft);">${(()=>{
             const imp = _seg(o.importadoEm || o.criadoEm), ini = _seg(o.iniciadoEm), agora = Date.now()/1000;
