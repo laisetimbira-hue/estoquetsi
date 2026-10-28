@@ -863,7 +863,7 @@ tbody tr:hover{background:#FAFCFA;}
       <div class="form-grid">
         <div class="field"><label>Cultivar</label>
           <select id="lCultivar">
-            <option value="95Y95">95Y95</option>
+            <option value="95Y95IPRO">95Y95IPRO</option>
             <option value="97Y70CE">97Y70CE</option>
             <option value="Ativa">Ativa (BMX ATIVA RR)</option>
             <option value="Batalha">Batalha (68K66RSF CE)</option>
@@ -1182,7 +1182,7 @@ function initListeners(){
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
     // nomes antigos de cultivar aparecem com o nome certo (Campacta→Compacta, DM65IX67 RSF I2X→Fúria); só na tela, o que está gravado não muda
-    const todasOrd = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
+    const todasOrd = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(x.cultivar==='95Y95') x.cultivar = '95Y95IPRO'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
     // ordens ABERTAS (importadas do PDF) ficam à parte: não baixam estoque nem entram nos números do Centro até serem fechadas
     lotesAbertas = todasOrd.filter(x=>x.status==='aberta');
     lotes = todasOrd.filter(x=>x.status!=='aberta');
@@ -1255,12 +1255,12 @@ let chartCoConsumo = null, chartCoCultivar = null;
 const PMS_CULTIVAR = {
   'C2560CE':227.3, 'Valente':226.4, 'Orion':222.1, 'Zeus':216.0, 'Titanium':215.8, 'Imune':209.8,
   'C2645CE':201.0, 'C2535CE':189.6, 'C2530RR':189.4, 'Raio':189.1, 'C2575E':188.9, 'C2600IPRO':187.7,
-  'Grafeno':184.4, 'Compacta':182.7, 'C2550E':180.6, 'Raça':178.7, 'Ativa':176.4, 'Batalha':174.1, '95Y95':140.0, 'Trovão':203.0, '97Y70CE':175.2,
+  'Grafeno':184.4, 'Compacta':182.7, 'C2550E':180.6, 'Raça':178.7, 'Ativa':176.4, 'Batalha':174.1, '95Y95IPRO':140.0, 'Trovão':203.0, '97Y70CE':175.2,
   'Vênus':175.2, 'Torque':173.5, 'Fibra':164.9, 'Fera':174.6, 'Fúria':177.2, 'DM59IX61RSF I2X':199.6, 'NEO581 E':183.6, 'C2615CE':163.9, 'Nexus':147.3, 'C2605E':146.5
 };
 const UNIDADES_VOLUME = { kg:{rotulo:'kg', sem:null}, sc:{rotulo:'SC 125k', sem:125000}, bb:{rotulo:'BB 5MM', sem:5000000} };
 function _chavePms(t){ return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
-const CODIGO_CULTIVAR = {'51IX51RSF I2X':'Trovão','68K66RSF CE':'Batalha','65IX67RSF I2X':'Fúria','65I65RSF IPRO':'Compacta','64IX66RSF I2X':'Nexus','64IX62RSF I2X':'Fera','64I61RSF IPRO':'Fibra','57K56RSF CE':'Grafeno','53IX55RSF I2X':'Imune','55IX56RSF I2X':'Orion','63E66RSF E':'Raça','50I52RSF IPRO':'Raio','56IX58RSF I2X':'Titanium','57IX60RSF I2X':'Torque','6968RSF':'Valente','57K58RSF CE':'Vênus','55I57RSF IPRO':'Zeus','BMX ATIVA RR':'Ativa','DM65IX67 RSF I2X':'Fúria'};
+const CODIGO_CULTIVAR = {'95Y95':'95Y95IPRO','51IX51RSF I2X':'Trovão','68K66RSF CE':'Batalha','65IX67RSF I2X':'Fúria','65I65RSF IPRO':'Compacta','64IX66RSF I2X':'Nexus','64IX62RSF I2X':'Fera','64I61RSF IPRO':'Fibra','57K56RSF CE':'Grafeno','53IX55RSF I2X':'Imune','55IX56RSF I2X':'Orion','63E66RSF E':'Raça','50I52RSF IPRO':'Raio','56IX58RSF I2X':'Titanium','57IX60RSF I2X':'Torque','6968RSF':'Valente','57K58RSF CE':'Vênus','55I57RSF IPRO':'Zeus','BMX ATIVA RR':'Ativa','DM65IX67 RSF I2X':'Fúria'};
 function pmsDe(cultivar){
   if(PMS_CULTIVAR[cultivar]) return PMS_CULTIVAR[cultivar];
   const k = _chavePms(cultivar); if(!k) return null;
