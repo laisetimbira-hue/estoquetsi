@@ -1535,10 +1535,24 @@ function renderCentroOperacoes(){
    importadoEm (PDF importado) → iniciadoEm (botão Iniciar) → fechadaEm (Fechar ordem)
 ========================================================= */
 function _seg(t){ return t && t.seconds!=null ? t.seconds : (t && typeof t.toMillis==='function' ? t.toMillis()/1000 : null); }
+/* Pausas: l.pausas = [{inicio, fim}] (fim vazio = pausada agora). O tempo parado não conta como tempo de tratamento. */
+function pausasDe(o){ return Array.isArray(o.pausas) ? o.pausas : []; }
+function estaPausada(o){ const pa = pausasDe(o); return pa.length>0 && pa[pa.length-1].fim==null; }
+function segPausados(o, ateSeg){
+  const ini = _seg(o.iniciadoEm); let tot = 0;
+  pausasDe(o).forEach(p=>{
+    const a = _seg(p.inicio); if(a==null) return;
+    let b = _seg(p.fim); if(b==null) b = ateSeg;
+    tot += Math.max(0, Math.min(b, ateSeg) - Math.max(a, ini!=null ? ini : a));
+  });
+  return tot;
+}
 function temposDaOrdem(l){
   const imp=_seg(l.importadoEm), ini=_seg(l.iniciadoEm), fim=_seg(l.fechadaEm);
+  const par = (ini!=null && fim!=null && fim>ini) ? segPausados(l, fim) : 0;
   return { espera: (imp!=null && ini!=null && ini>=imp) ? (ini-imp)/60 : null,
-           trat:   (ini!=null && fim!=null && fim>ini) ? (fim-ini)/60 : null };
+           trat:   (ini!=null && fim!=null && fim>ini) ? Math.max(0,(fim-ini-par))/60 : null,
+           parado: par>0 ? par/60 : null };
 }
 function fmtDur(min){
   if(min==null || isNaN(min)) return '—';
@@ -2436,6 +2450,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   if(fechandoOrdemId){
     const ord = lotesAbertas.find(o=>o.id===fechandoOrdemId) || {};
     const upd = {...dadosLote, status:'fechada', fechadaEm: firebase.firestore.FieldValue.serverTimestamp()};
+    if(estaPausada(ord)){ const pa = pausasDe(ord).slice(); pa[pa.length-1] = {inicio: pa[pa.length-1].inicio, fim: firebase.firestore.Timestamp.fromDate(new Date())}; upd.pausas = pa; }  // fechou parada: a pausa termina agora
     const imp = ord.importadoEm || ord.criadoEm; if(imp) upd.importadoEm = imp;   // criadoEm é regravado ao fechar; guarda o horário da importação
     batch.update(loteRef, upd);
   } else batch.set(loteRef, dadosLote);
@@ -2642,14 +2657,23 @@ function renderAbertas(){
           <div style="font-size:12.5px; margin-top:3px; color:var(--text-soft);">${(()=>{
             const imp = _seg(o.importadoEm || o.criadoEm), ini = _seg(o.iniciadoEm), agora = Date.now()/1000;
             const imps = imp!=null ? 'Importada '+fmtHoraTs(o.importadoEm || o.criadoEm) : '';
-            if(ini!=null) return imps+' · <b style="color:var(--green-dark);">▶ Em tratamento desde '+fmtHoraTs(o.iniciadoEm)+' (há '+fmtDur((agora-ini)/60)+')</b> · espera '+fmtDur(imp!=null?(ini-imp)/60:null);
+            if(ini!=null){
+              const par = segPausados(o, agora), ativo = (agora-ini-par)/60, pa = pausasDe(o);
+              const esp = ' · espera '+fmtDur(imp!=null?(ini-imp)/60:null);
+              const parado = par>0 ? ' · parado '+fmtDur(par/60)+' ('+pa.length+(pa.length>1?' pausas':' pausa')+')' : '';
+              if(estaPausada(o)) return imps+' · <b style="color:#8a6100;">⏸ Pausada desde '+fmtHoraTs(pa[pa.length-1].inicio)+'</b> · tratado até agora '+fmtDur(ativo)+parado;
+              return imps+' · <b style="color:var(--green-dark);">▶ Em tratamento desde '+fmtHoraTs(o.iniciadoEm)+' · tempo ativo '+fmtDur(ativo)+'</b>'+parado+esp;
+            }
             return imps+(imp!=null?' · <b>aguardando início há '+fmtDur((agora-imp)/60)+'</b>':'');
           })()}</div>
           ${(o.lotesDetalhe&&o.lotesDetalhe.length) ? `<div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">Lotes: ${o.lotesDetalhe.map(x=>esc(x.origem)+(x.destino&&x.destino!==x.origem?' → '+esc(x.destino):'')+' ('+fmtNum(x.kg)+' kg)').join(' · ')}</div>` : ''}
           ${av.length ? `<div style="font-size:12px; color:#8a6100; margin-top:4px;">⚠ ${av.slice(0,4).map(esc).join('<br>⚠ ')}${av.length>4?'<br>… e mais '+(av.length-4):''}</div>` : ''}
         </div>
         ${viewer ? '' : `<div style="display:flex; gap:8px;">
-          ${o.iniciadoEm ? `<button class="btn btn-ghost btn-sm" onclick='ajustarInicio("${o.id}")' title="Corrigir o horário em que o tratamento começou">Ajustar início</button>`
+          ${o.iniciadoEm ? (estaPausada(o)
+              ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--green); color:var(--green-dark); font-weight:700;" onclick='retomarOrdem("${o.id}")'>▶ Retomar</button>`
+              : `<button class="btn btn-ghost btn-sm" style="border-color:#e0a800; color:#8a6100; font-weight:700;" onclick='pausarOrdem("${o.id}")' title="Parar o relógio (fim do expediente, quebra, almoço...)">⏸ Pausar</button>`)
+              + `<button class="btn btn-ghost btn-sm" onclick='ajustarInicio("${o.id}")' title="Corrigir o horário em que o tratamento começou">Ajustar início</button>`
                          : `<button class="btn btn-ghost btn-sm" style="border-color:var(--green); color:var(--green-dark); font-weight:700;" onclick='iniciarOrdem("${o.id}")'>▶ Iniciar tratamento</button>`}
           <button class="btn btn-primary btn-sm" onclick='fecharOrdem("${o.id}")'>Fechar ordem</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick='excluirAberta("${o.id}")' title="Excluir esta ordem aberta (não mexe no estoque)">Excluir</button>
@@ -2702,6 +2726,35 @@ function ajustarInicio(id){
   if(!m || +m[1]>23 || +m[2]>59){ toast('Horário inválido. Use HH:MM, por exemplo 09:30', true); return; }
   const novo = new Date(atual); novo.setHours(+m[1], +m[2], 0, 0);
   db.collection('lotesTratamento').doc(id).update({iniciadoEm: firebase.firestore.Timestamp.fromDate(novo)}).then(()=>toast('Horário de início ajustado')).catch(()=>toast('Erro ao ajustar', true));
+}
+/* "HH:MM" -> Date (hoje; se ficar no futuro, é de ontem). Serve para informar um horário que já passou. */
+function dataDeHorario(hhmm){
+  const m = String(hhmm||'').trim().match(/^(\d{1,2})[:h](\d{2})$/);
+  if(!m || +m[1]>23 || +m[2]>59) return null;
+  const d = new Date(); d.setHours(+m[1], +m[2], 0, 0);
+  if(d.getTime() > Date.now()+60000) d.setDate(d.getDate()-1);
+  return d;
+}
+function hhmmAgora(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function pausarOrdem(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o || !o.iniciadoEm || estaPausada(o)) return;
+  const v = prompt('Pausar a ordem '+o.numeroLote+'.\nHorário da pausa (HH:MM). Deixe como está para pausar agora, ou digite o horário real se esqueceu de pausar (ex.: 18:00):', hhmmAgora());
+  if(v==null) return;
+  const d = dataDeHorario(v); if(!d){ toast('Horário inválido. Use HH:MM, por exemplo 18:00', true); return; }
+  const pa = pausasDe(o), minimo = Math.max(_seg(o.iniciadoEm)||0, pa.length ? (_seg(pa[pa.length-1].fim)||0) : 0);
+  if(d.getTime()/1000 < minimo){ toast('O horário da pausa não pode ser antes do início/da última retomada', true); return; }
+  db.collection('lotesTratamento').doc(id).update({pausas:[...pa, {inicio: firebase.firestore.Timestamp.fromDate(d), fim: null}]})
+    .then(()=>toast('Ordem '+o.numeroLote+' pausada — o relógio parou')).catch(()=>toast('Erro ao pausar', true));
+}
+function retomarOrdem(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o || !estaPausada(o)) return;
+  const pa = pausasDe(o).slice(), ult = pa[pa.length-1];
+  const v = prompt('Retomar a ordem '+o.numeroLote+'.\nHorário em que voltaram a tratar (HH:MM). Deixe como está para retomar agora:', hhmmAgora());
+  if(v==null) return;
+  const d = dataDeHorario(v); if(!d){ toast('Horário inválido. Use HH:MM, por exemplo 07:30', true); return; }
+  if(d.getTime()/1000 < (_seg(ult.inicio)||0)){ toast('O horário de retomada não pode ser antes da pausa', true); return; }
+  pa[pa.length-1] = {inicio: ult.inicio, fim: firebase.firestore.Timestamp.fromDate(d)};
+  db.collection('lotesTratamento').doc(id).update({pausas: pa}).then(()=>toast('Ordem '+o.numeroLote+' retomada — o relógio voltou a contar')).catch(()=>toast('Erro ao retomar', true));
 }
 function excluirAberta(id){
   const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
@@ -2804,6 +2857,7 @@ function verLote(id){
       ? `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;">
           ${metrica('Espera', fmtDur(t.espera))}
           ${metrica('Tratamento', fmtDur(t.trat))}
+          ${t.parado ? metrica('Tempo parado', fmtDur(t.parado)) : ''}
           ${metrica('Rendimento', t.trat ? Math.round(kgTrat/(t.trat/60)).toLocaleString('pt-BR')+' kg/h' : '—')}
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px; font-size:12.5px; color:var(--text-soft);">
