@@ -2364,10 +2364,6 @@ function candidatosParaItem(item){
   if(!candidatos.length && ref) candidatos = [ref];
   return candidatos;
 }
-function outrosParaItem(item, candidatos){
-  const familia = familiaUnidade(unidadeDoItem(item)), ids = new Set(candidatos.map(c=>c.id));
-  return produtos.filter(p=> !ids.has(p.id) && familiaUnidade(p.unidade)===familia);   // já vêm em ordem A–Z
-}
 function calcularConsumoLote(){
   const receita = receitas.find(r=>r.id===document.getElementById('lReceita').value);
   const kg = Number(document.getElementById('lQuantidade').value)||0;
@@ -2376,14 +2372,13 @@ function calcularConsumoLote(){
   loteItensAtuais = receita.itens.map((i, idx)=>{
     const candidatos = candidatosParaItem(i);
     // mantém a seleção anterior se ela ainda for uma opção válida; senão prioriza quem tem estoque suficiente
-    const outros = outrosParaItem(i, candidatos);
     const selecaoAnterior = anterior[idx] && anterior[idx].receitaItemNome===i.produtoNome ? anterior[idx].selectedProdutoId : null;
-    let selectedProdutoId = (selecaoAnterior && (candidatos.some(c=>c.id===selecaoAnterior) || outros.some(c=>c.id===selecaoAnterior))) ? selecaoAnterior : null;
+    let selectedProdutoId = (selecaoAnterior && candidatos.some(c=>c.id===selecaoAnterior)) ? selecaoAnterior : null;
     if(!selectedProdutoId){
       const comEstoque = candidatos.find(c=> Number(c.quantidade) >= consumoDoItem(i, c, kg));
       selectedProdutoId = comEstoque ? comEstoque.id : (candidatos[0] ? candidatos[0].id : i.produtoId);
     }
-    return { receitaItem:i, receitaItemNome:i.produtoNome, candidatos, outros, selectedProdutoId };
+    return { receitaItem:i, receitaItemNome:i.produtoNome, candidatos, selectedProdutoId };
   });
   renderLotePreview();
   return getLoteConsumoFinal(kg);
@@ -2396,25 +2391,19 @@ function renderLotePreview(){
     const consumo = consumoDoItem(item.receitaItem, produto, kg);
     const disponivel = produto ? Number(produto.quantidade) : 0;
     const suficiente = disponivel >= consumo;
-    const pct = disponivel>0 ? Math.min(100, Math.round((consumo/disponivel)*100)) : 100;
-    const temAlternativas = item.candidatos.length > 1 || (item.outros||[]).length > 0;
-    const ehOutro = !!produto && !item.candidatos.some(c=>c.id===produto.id);
+    const pct = disponivel ? Math.min(100, Math.round((consumo/disponivel)*100)) : 100;
+    const temAlternativas = item.candidatos.length > 1;
     return `<div style="margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px;">
         ${temAlternativas
           ? `<select style="flex:1; padding:5px 8px; border:1.5px solid var(--border); border-radius:7px; font-size:12.5px;" onchange="onLoteSubstitutoChange(${idx}, this.value)">
-              <optgroup label="Mesmo ingrediente ativo">
               ${item.candidatos.map(c=>`<option value="${c.id}" ${c.id===item.selectedProdutoId?'selected':''}>${esc(c.nome)} (${fmtNum(c.quantidade)} ${esc(c.unidade)} em estoque)</option>`).join('')}
-              </optgroup>
-              ${(item.outros||[]).length ? `<optgroup label="Outro produto (se foi trocado por um diferente)">
-              ${item.outros.map(c=>`<option value="${c.id}" ${c.id===item.selectedProdutoId?'selected':''}>${esc(c.nome)} (${fmtNum(c.quantidade)} ${esc(c.unidade)} em estoque)</option>`).join('')}
-              </optgroup>` : ''}
             </select>`
           : `<span>${esc(produto ? produto.nome : item.receitaItemNome)}</span>`
         }
         <b style="color:${suficiente?'var(--green-dark)':'var(--danger)'}; white-space:nowrap;">${fmtNum(consumo)} ${esc(unidade)}${suficiente?'':(produto ? ' — falta '+fmtNum(consumo-disponivel)+' '+esc(unidade)+' (estoque: '+fmtNum(disponivel)+' '+esc(unidade)+')' : ' — produto não encontrado no cadastro')}</b>
       </div>
-      ${temAlternativas ? (ehOutro ? '<div style="font-size:11px; color:#8a6100; margin-top:2px;">Produto diferente do da receita ('+esc(item.receitaItemNome)+') — o consumo será baixado dele</div>' : '<div style="font-size:11px; color:var(--text-mute); margin-top:2px;">Pode trocar o produto usado (mesmo ingrediente ativo ou outro produto)</div>') : ''}
+      ${temAlternativas ? '<div style="font-size:11px; color:var(--text-mute); margin-top:2px;">Mesmo ingrediente ativo — pode trocar o produto usado</div>' : ''}
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${suficiente?'var(--green)':'var(--danger)'}"></div></div>
     </div>`;
   }).join('');
@@ -2429,9 +2418,7 @@ function getLoteConsumoFinal(kg){
     const unidade = produto ? produto.unidade : '';
     const consumo = consumoDoItem(item.receitaItem, produto, kg);
     const disponivel = produto ? Number(produto.quantidade) : 0;
-    const ref = produtoDoItem(item.receitaItem);
-    const substituiu = (ref && produto && ref.id!==produto.id) ? ref.nome : '';
-    return { produtoId: item.selectedProdutoId, produtoNome: produto?produto.nome:item.receitaItemNome, unidade, consumo, disponivel, suficiente: disponivel>=consumo, substituiu };
+    return { produtoId: item.selectedProdutoId, produtoNome: produto?produto.nome:item.receitaItemNome, unidade, consumo, disponivel, suficiente: disponivel>=consumo };
   });
 }
 ['lQuantidade','lReceita'].forEach(id=> document.getElementById(id).addEventListener('input', calcularConsumoLote));
@@ -2448,10 +2435,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const itens = getLoteConsumoFinal(kg);
   if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
   const insuficiente = itens.find(i=>!i.suficiente);
-  if(insuficiente){
-    const faltam = itens.filter(i=>!i.suficiente).map(i=>'• '+i.produtoNome+': precisa '+fmtNum(i.consumo)+' '+i.unidade+', tem '+fmtNum(i.disponivel)+' '+i.unidade+' (vai ficar '+fmtNum(+(i.disponivel-i.consumo).toFixed(3))+')').join('\n');
-    if(!confirm('Estoque insuficiente:\n\n'+faltam+'\n\nO saldo desses produtos vai ficar NEGATIVO. Fechar mesmo assim?\n\n(Se foi usado outro produto, cancele e escolha ele na lista do produto.)')) return;
-  }
+  if(insuficiente){ toast('Estoque insuficiente de ' + insuficiente.produtoNome, true); return; }
 
   if(fechandoOrdemId && !lotesAbertas.some(o=>o.id===fechandoOrdemId)){ toast('Esta ordem não está mais aberta (já foi fechada ou excluída)', true); return; }
   const batch = db.batch();
@@ -2460,7 +2444,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     cultivar, numeroLote, quantidadeSementes: kg, sobraKg, receitaId: receita.id, receitaNome: receita.nome,
     operador: (v=>v.toLowerCase()==='c'?'Celso':v)(document.getElementById('lOperador').value.trim()),
     data: document.getElementById('lData').value,
-    itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade, ...(i.substituiu?{substituiu:i.substituiu}:{})})),
+    itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
   };
   if(fechandoOrdemId){
@@ -2478,7 +2462,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     batch.set(movRef, {
       produtoId: i.produtoId, produtoNome: i.produtoNome, tipo:'saida', motivo:'Consumo em tratamento de sementes',
       quantidade: i.consumo, data: document.getElementById('lData').value,
-      observacoes: `Ordem ${numeroLote} — ${cultivar} (receita: ${receita.nome})`+(i.substituiu?` — no lugar de ${i.substituiu}`:''),
+      observacoes: `Ordem ${numeroLote} — ${cultivar} (receita: ${receita.nome})`,
       responsavel: currentUserData.nome || 'Usuário', saldoApos: novoSaldo,
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -2882,7 +2866,7 @@ function verLote(id){
       : '<div style="font-size:13px; color:var(--text-mute);">Sem tempo registrado (ordem lançada manualmente ou antes do controle de tempo).</div>')
     + sec('Consumo de produtos', consumo.length
       ? `<div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;"><table style="margin:0;"><thead><tr><th>Produto</th><th style="text-align:right;">Quantidade</th></tr></thead><tbody>
-          ${consumo.map(i=>`<tr><td>${esc(i.produtoNome)}${i.substituiu?'<div style="font-size:11.5px; color:#8a6100;">no lugar de '+esc(i.substituiu)+'</div>':''}</td><td style="text-align:right;"><b>${fmtNum(i.quantidade)}</b> ${esc(i.unidade||'')}</td></tr>`).join('')}
+          ${consumo.map(i=>`<tr><td>${esc(i.produtoNome)}</td><td style="text-align:right;"><b>${fmtNum(i.quantidade)}</b> ${esc(i.unidade||'')}</td></tr>`).join('')}
         </tbody></table></div>`
       : '<div style="font-size:13px; color:var(--text-mute);">Nenhum consumo registrado.</div>');
   openModal('modalVerOrdem');
