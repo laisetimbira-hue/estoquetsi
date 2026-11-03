@@ -2395,6 +2395,13 @@ function montarLotId(safra, code){
   return seguro ? safra+'_'+seguro : null;
 }
 const RE_LOTE_VALIDO = /^[A-Z0-9][A-Z0-9/_-]{1,24}$/;
+/* O que a pessoa digitou só pode ter letras, números, / - _ (espaços são ignorados) e, no máximo,
+   um ponto final de digitação ("26S35B." vira 26S35B). Qualquer outro caractere é RECUSADO,
+   não limpo em silêncio ("26S#@!" não vira "26S"). */
+function loteDigitadoValido(bruto){
+  const s = String(bruto==null?'':bruto).trim().toUpperCase().replace(/\s+/g,'');
+  return /^[A-Z0-9][A-Z0-9/_-]*\.?$/.test(s) && RE_LOTE_VALIDO.test(codigoLote(s));
+}
 function comIdsDeLote(l, safra){
   safra = safra || SAFRA_ATIVA.codigo;
   const src = codigoLote(l.origem), dst = codigoLote(l.destino) || src;
@@ -2468,8 +2475,8 @@ function criarEditorLotes(p){
     for(const x of linhas){
       const src = codigoLote(x.origem), dstTxt = String(x.destino||'').trim(), dst = codigoLote(dstTxt);
       if(!src) return {erro:'Falta o lote de origem em uma das linhas'};
-      if(!RE_LOTE_VALIDO.test(src)) return {erro:'Lote "'+x.origem+'" inválido — use só letras, números, / - _ (2 a 25 caracteres)'};
-      if(dstTxt && !RE_LOTE_VALIDO.test(dst)) return {erro:'Lote tratado "'+dstTxt+'" inválido'};
+      if(!loteDigitadoValido(x.origem)) return {erro:'Lote "'+String(x.origem).trim()+'" inválido — use só letras, números, / - _ (2 a 25 caracteres)'};
+      if(dstTxt && !loteDigitadoValido(dstTxt)) return {erro:'Lote tratado "'+dstTxt+'" inválido — use só letras, números, / - _ (2 a 25 caracteres)'};
       if(vistos.has(src)) return {erro:'Lote '+src+' repetido'};
       vistos.add(src);
       const kgTxt = String(x.kg||'').trim(), kg = kgTxt==='' ? null : Number(kgTxt);
