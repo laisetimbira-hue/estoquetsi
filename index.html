@@ -908,6 +908,12 @@ body.perfil-nao-admin .so-admin{display:none !important;}
         <div class="field"><label>Data</label><input type="date" id="lData"></div>
         <div class="field"><label>Sobra de semente tratada (kg)</label><input type="number" step="0.01" min="0" id="lSobra" placeholder="0 — pode informar depois"></div>
       </div>
+      <style>
+        .btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none; filter:grayscale(.4);}
+        .lote-sem-row{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr) auto; gap:8px; align-items:center; margin-bottom:6px;}
+        @media (max-width:600px){ .lote-sem-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr); padding-bottom:8px; border-bottom:1px dashed var(--border);} }
+      </style>
+      <div id="lLotesHost"></div>
       <div class="card" style="margin-top:16px; background:var(--green-soft); border-color:var(--green);">
         <div class="card-title" style="margin-bottom:10px; font-size:13.5px;">Consumo calculado</div>
         <div id="lotePreview" style="font-size:13px; color:var(--text-soft);">Informe a quantidade de sementes e a receita para calcular.</div>
@@ -916,6 +922,20 @@ body.perfil-nao-admin .so-admin{display:none !important;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modalLote')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarLote">Confirmar tratamento e baixar estoque</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalInformarLote">
+  <div class="modal modal-lg">
+    <div class="modal-head"><div class="modal-title" id="infLoteTitulo">Informar lote</div><button class="modal-close" onclick="closeModal('modalInformarLote')">✕</button></div>
+    <div class="modal-body">
+      <div id="infLoteResumo" style="font-size:13.5px; color:var(--text-soft);"></div>
+      <div id="iLotesHost"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalInformarLote')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarInfLote">Salvar lote</button>
     </div>
   </div>
 </div>
@@ -973,6 +993,16 @@ body.perfil-nao-admin .so-admin{display:none !important;}
    TSI ESTOQUE — Firebase config
    Substitua pelos dados do seu projeto Firebase antes de publicar.
 ========================================================= */
+/* =========================================================
+   SAFRA ATIVA — ÚNICO lugar para trocar a safra no TSI.
+   Usada para montar o identificador do lote da Central de Lotes
+   (lotId = SAFRA_LOTE, ex.: SOJA2526_26S133C) nas ordens novas.
+   Na virada de safra, trocar aqui E no robô da Central
+   (seedmax-qualidade/scripts/central_lotes.py → SAFRA_ATIVA), juntos.
+   Ordens já gravadas guardam a safra delas (campo "safra") e não mudam.
+========================================================= */
+const SAFRA_ATIVA = Object.freeze({ codigo: 'SOJA2526', nome: 'Soja 2025/2026' });
+
 const firebaseConfig = {
   apiKey: "AIzaSyD4iZ7eGWWBx48D2sq7TcNhrpBg02ejhCQ",
   authDomain: "estoquetsi.firebaseapp.com",
@@ -1324,7 +1354,8 @@ function classeEmbalagem(un){
 }
 function embalagemOrdem(l){
   const det = l.lotesDetalhe||[], kg = Number(l.quantidadeSementes)||0;
-  if(det.length){
+  // embalagem real só quando todas as linhas trazem a embalagem do PDF (lote digitado à mão não tem)
+  if(det.length && det.every(x=> x.unidade && (x.qtdDestino!=null || x.qtdOrigem!=null))){
     const r = {sc:0, bb:0, outros:{}, real:true};
     det.forEach(x=>{ const q = Number(x.qtdDestino!=null ? x.qtdDestino : x.qtdOrigem)||0, c = classeEmbalagem(x.unidade);
       if(c.tipo==='bb') r.bb += q; else if(c.tipo==='sc') r.sc += q; else r.outros[c.rot] = (r.outros[c.rot]||0)+q; });
@@ -2347,8 +2378,149 @@ function fillReceitaSelect(){
    LOTES DE TRATAMENTO
 ========================================================= */
 let loteItensAtuais = []; // estado interativo do preview (permite trocar produto substituto)
+
+/* ---------- Lote de semente (obrigatório para FECHAR) + identificador da Central de Lotes ----------
+   lotId = SAFRA_LOTE (ex.: SOJA2526_26S133C), mesma regra do robô da Central
+   (seedmax-qualidade/scripts/central_lotes.py: codigo_lote / montar_lot_id).
+   A safra vem de SAFRA_ATIVA (configuração única, no início do script).
+   sourceLotId = lote que entrou no TSI; treatedLotId = lote que saiu (igual se o código não muda).
+   Ordem importada sem lote entra com LOTE PENDENTE e só fecha depois de informar o lote. */
+function codigoLote(bruto){
+  let s = String(bruto==null?'':bruto).trim().toUpperCase().replace(/\s+/g,'');
+  s = s.replace(/[^A-Z0-9/_-]+$/,'').replace(/^[^A-Z0-9]+/,'');
+  return s;
+}
+function montarLotId(safra, code){
+  const seguro = String(code||'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');
+  return seguro ? safra+'_'+seguro : null;
+}
+const RE_LOTE_VALIDO = /^[A-Z0-9][A-Z0-9/_-]{1,24}$/;
+function comIdsDeLote(l, safra){
+  safra = safra || SAFRA_ATIVA.codigo;
+  const src = codigoLote(l.origem), dst = codigoLote(l.destino) || src;
+  return {...l, sourceLotCode:src, sourceLotId:montarLotId(safra, src), treatedLotCode:dst, treatedLotId:montarLotId(safra, dst)};
+}
+function idsDaOrdem(det, safra){
+  return { safra: safra || SAFRA_ATIVA.codigo,
+    lotesOrigem: [...new Set(det.map(l=>String(l.origem)))],
+    sourceLotIds: [...new Set(det.map(l=>l.sourceLotId).filter(Boolean))],
+    treatedLotIds: [...new Set(det.map(l=>l.treatedLotId).filter(Boolean))] };
+}
+function ordemSemLote(o){ return !(o && o.lotesDetalhe && o.lotesDetalhe.length); }
+
+/* Editor de lotes reutilizável: "l" = modal Tratar/Fechar, "i" = modal Informar lote */
+const EDITORES = {};
+function htmlEditorLotes(p){
+  return `<div class="card" id="${p}LotesBox" style="margin-top:16px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+      <span class="card-title" style="margin:0; font-size:13.5px;">Lotes de semente</span>
+      <span style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:700;">obrigatório</span>
+      <span id="${p}LotesFonte" style="margin-left:auto; font-size:11.5px; color:var(--text-mute);"></span>
+    </div>
+    <div id="${p}LotesLista"></div>
+    <div id="${p}LotesRodape" style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-ghost btn-sm" id="${p}LotesAdd">+ Adicionar lote</button>
+      <span style="font-size:11.5px; color:var(--text-mute);">"Lote tratado" só se o código mudar no tratamento. Com um lote só, o kg pode ficar em branco (usa o total). Safra ativa: ${esc(SAFRA_ATIVA.nome)}.</span>
+    </div>
+  </div>`;
+}
+function criarEditorLotes(p){
+  document.getElementById(p+'LotesHost').innerHTML = htmlEditorLotes(p);
+  const linhaVazia = ()=>({origem:'', destino:'', kg:''});
+  const ed = { form:[linhaVazia()], fixo:null };
+  ed.preparar = function(ordem){
+    const det = ordemSemLote(ordem) ? null : ordem.lotesDetalhe;
+    ed.fixo = det ? det.map(x=>({...x})) : null;
+    ed.form = (!det && ordem && (ordem.lotesOrigem||[]).length) ? ordem.lotesOrigem.map(o=>({origem:o, destino:'', kg:''})) : [linhaVazia()];
+    ed.render();
+  };
+  ed.render = function(){
+    const box = document.getElementById(p+'LotesLista'), fonte = document.getElementById(p+'LotesFonte');
+    document.getElementById(p+'LotesRodape').style.display = ed.fixo ? 'none' : 'flex';
+    if(ed.fixo){
+      fonte.textContent = ed.fixo.some(x=>x.fonteLote==='manual') ? 'Informados no sistema' : 'Vindos do PDF da ordem (Agro1)';
+      box.innerHTML = `<table style="width:100%; font-size:12.5px; border-collapse:collapse;">
+        <tr style="color:var(--text-mute); text-align:left;"><th style="padding:3px 6px;">Lote de origem</th><th style="padding:3px 6px;">Lote tratado</th><th style="padding:3px 6px; text-align:right;">kg</th></tr>
+        ${ed.fixo.map(x=>`<tr style="border-top:1px solid var(--border);"><td style="padding:4px 6px;"><b>${esc(x.origem)}</b></td><td style="padding:4px 6px;">${esc(x.destino||x.origem)}</td><td style="padding:4px 6px; text-align:right;">${x.kg!=null?fmtNum(x.kg):'—'}</td></tr>`).join('')}
+      </table>`;
+      return;
+    }
+    fonte.textContent = 'Digite como está na etiqueta (ex.: 26S133C)';
+    const inp = 'padding:7px 9px; border:1.5px solid var(--border); border-radius:7px; font-size:13px; width:100%; box-sizing:border-box;';
+    box.innerHTML = ed.form.map((x,i)=>`<div class="lote-sem-row">
+        <input style="${inp}" placeholder="Lote de origem *" value="${esc(x.origem)}" oninput="EDITORES.${p}.form[${i}].origem=this.value" aria-label="Lote de origem">
+        <input style="${inp}" placeholder="Lote tratado" value="${esc(x.destino)}" oninput="EDITORES.${p}.form[${i}].destino=this.value" aria-label="Lote tratado">
+        <input style="${inp}" type="number" step="0.01" min="0" placeholder="kg" value="${esc(x.kg)}" oninput="EDITORES.${p}.form[${i}].kg=this.value" aria-label="kg do lote">
+        <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);" title="Remover este lote" onclick="EDITORES.${p}.remover(${i})" ${ed.form.length<2?'disabled':''}>✕</button>
+      </div>`).join('');
+  };
+  ed.remover = function(i){ ed.form.splice(i,1); if(!ed.form.length) ed.form.push(linhaVazia()); ed.render(); };
+  /* Valida e devolve as linhas prontas para gravar (com sourceLotId/treatedLotId). */
+  ed.validar = function(kgTotal){
+    if(ed.fixo){
+      const det = ed.fixo.map(x=>comIdsDeLote(x)).filter(x=>x.sourceLotCode);
+      if(!det.length) return {erro:'A ordem não tem lote de semente válido'};
+      return {det};
+    }
+    const linhas = ed.form.filter(x=> String(x.origem||'').trim() || String(x.destino||'').trim() || String(x.kg||'').trim());
+    if(!linhas.length) return {erro:'Informe pelo menos um lote de semente (obrigatório)'};
+    const vistos = new Set(), det = [];
+    for(const x of linhas){
+      const src = codigoLote(x.origem), dstTxt = String(x.destino||'').trim(), dst = codigoLote(dstTxt);
+      if(!src) return {erro:'Falta o lote de origem em uma das linhas'};
+      if(!RE_LOTE_VALIDO.test(src)) return {erro:'Lote "'+x.origem+'" inválido — use só letras, números, / - _ (2 a 25 caracteres)'};
+      if(dstTxt && !RE_LOTE_VALIDO.test(dst)) return {erro:'Lote tratado "'+dstTxt+'" inválido'};
+      if(vistos.has(src)) return {erro:'Lote '+src+' repetido'};
+      vistos.add(src);
+      const kgTxt = String(x.kg||'').trim(), kg = kgTxt==='' ? null : Number(kgTxt);
+      if(kg!=null && (isNaN(kg) || kg<0)) return {erro:'kg inválido no lote '+src};
+      if(kg!=null && kg>kgTotal+0.01) return {erro:'O lote '+src+' tem mais kg que o total da ordem'};
+      det.push(comIdsDeLote({origem:src, destino: dst || src, kg, fonteLote:'manual'}));   // grava já no formato padrão (26s200a. → 26S200A)
+    }
+    if(det.length===1 && det[0].kg==null) det[0].kg = kgTotal;
+    let aviso = null;
+    if(det.every(l=>l.kg!=null)){
+      const soma = det.reduce((s,l)=>s+l.kg,0);
+      if(Math.abs(soma-kgTotal) > Math.max(1, kgTotal*0.01)) aviso = 'A soma dos lotes ('+fmtNum(soma)+' kg) é diferente do total da ordem ('+fmtNum(kgTotal)+' kg).';
+    }
+    return {det, aviso};
+  };
+  document.getElementById(p+'LotesAdd').addEventListener('click', ()=>{ ed.form.push(linhaVazia()); ed.render(); });
+  EDITORES[p] = ed;
+  return ed;
+}
+criarEditorLotes('l');
+criarEditorLotes('i');
+
+/* Informar o lote de uma ordem aberta que entrou com LOTE PENDENTE (não mexe no estoque) */
+let informandoLoteId = null;
+function informarLote(id){
+  const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
+  informandoLoteId = id;
+  document.getElementById('infLoteTitulo').textContent = 'Informar lote — Ordem '+o.numeroLote;
+  document.getElementById('infLoteResumo').innerHTML = '<b>'+esc(o.cultivar)+'</b> · '+fmtNum(o.quantidadeSementes)+' kg · '+esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))+(o.produtor?' · Produtor: '+esc(o.produtor):'')
+    + '<div style="margin-top:4px; font-size:12px; color:var(--text-mute);">O estoque não muda aqui. Depois de salvar o lote, a ordem pode ser fechada.</div>';
+  EDITORES.i.preparar({lotesOrigem:o.lotesOrigem||[]});   // sempre editável
+  openModal('modalInformarLote');
+}
+document.getElementById('btnSalvarInfLote').addEventListener('click', ()=>{
+  const o = lotesAbertas.find(x=>x.id===informandoLoteId);
+  if(!o){ toast('Esta ordem não está mais aberta', true); closeModal('modalInformarLote'); return; }
+  if(!ordemSemLote(o)){ toast('O lote desta ordem já foi informado', true); closeModal('modalInformarLote'); return; }
+  const vl = EDITORES.i.validar(Number(o.quantidadeSementes)||0);
+  if(vl.erro){ toast(vl.erro, true); return; }
+  if(vl.aviso && !confirm(vl.aviso+'\n\nSalvar assim mesmo?')) return;
+  db.collection('lotesTratamento').doc(o.id).update({
+    lotesDetalhe: vl.det, ...idsDaOrdem(vl.det), lotePendente: false,
+    loteInformadoPor: (currentUserData&&currentUserData.nome)||'Usuário',
+    loteInformadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(()=>{ informandoLoteId = null; closeModal('modalInformarLote'); toast('Lote da ordem '+o.numeroLote+' salvo — a ordem já pode ser fechada'); })
+    .catch(()=>toast('Erro ao salvar o lote', true));
+});
+
 document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   fechandoOrdemId = null;
+  EDITORES.l.preparar(null);
   document.getElementById('loteModalTitle').textContent = 'Tratar novo lote';
   document.getElementById('btnSalvarLote').textContent = 'Confirmar tratamento e baixar estoque';
   fillReceitaSelect();
@@ -2457,6 +2629,11 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   const sobraKg = Number(document.getElementById('lSobra').value)||0;
   if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos (inclusive o N° da ordem)', true); return; }
   if(sobraKg<0 || sobraKg>kg){ toast('A sobra não pode ser maior que a quantidade tratada', true); return; }
+  if(fechandoOrdemId){ const ab = lotesAbertas.find(o=>o.id===fechandoOrdemId); if(ab && ordemSemLote(ab)){ toast('Ordem com LOTE PENDENTE — informe o lote antes de fechar', true); return; } }
+  const vl = EDITORES.l.validar(kg);
+  if(vl.erro){ toast(vl.erro, true); document.getElementById('lLotesBox').scrollIntoView({behavior:'smooth', block:'center'}); return; }
+  if(vl.aviso && !confirm(vl.aviso+'\n\nSalvar assim mesmo?')) return;
+  const lotesDetalhe = vl.det;
   const itens = getLoteConsumoFinal(kg);
   if(!itens || !itens.length){ toast('Não foi possível calcular o consumo', true); return; }
   const insuficiente = itens.find(i=>!i.suficiente);
@@ -2470,6 +2647,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     operador: (v=>v.toLowerCase()==='c'?'Celso':v)(document.getElementById('lOperador').value.trim()),
     data: document.getElementById('lData').value,
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
+    lotesDetalhe, ...idsDaOrdem(lotesDetalhe),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
   };
   if(fechandoOrdemId){
@@ -2611,15 +2789,18 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
   const arquivos = [...this.files]; this.value = '';
   if(!arquivos.length) return;
   toast('Lendo '+arquivos.length+' PDF'+(arquivos.length>1?'s':'')+'...');
-  const ok = [], problemas = [], completadas = [];
+  const ok = [], problemas = [], completadas = [], pendentes = [];
   const vistos = new Set([...lotes, ...lotesAbertas].map(l=>String(l.numeroLote)));
   for(const f of arquivos){
     try{
       const o = interpretarOrdemPdf(await lerLinhasPdf(f));
+      // lote de semente é obrigatório: se a tabela completa não foi lida, usa só o código do lote
+      if(!o.lotesDetalhe.length && o.lotesOrigem.length) o.lotesDetalhe = o.lotesOrigem.map(x=>({origem:x, destino:x}));
+      o.lotesDetalhe = o.lotesDetalhe.map(x=>comIdsDeLote(x)).filter(x=>x.sourceLotCode);
       if(vistos.has(String(o.numeroLote))){
         const ex = [...lotes, ...lotesAbertas].find(l=>String(l.numeroLote)===String(o.numeroLote));
         if(ex && !(ex.lotesDetalhe && ex.lotesDetalhe.length) && o.lotesDetalhe.length){   // ordem já existia sem os lotes de semente: só completa esse dado
-          await db.collection('lotesTratamento').doc(ex.id).update({lotesOrigem:o.lotesOrigem, lotesDetalhe:o.lotesDetalhe, produtor:ex.produtor||o.produtor||''});
+          await db.collection('lotesTratamento').doc(ex.id).update({lotesDetalhe:o.lotesDetalhe, ...idsDaOrdem(o.lotesDetalhe), lotePendente:false, produtor:ex.produtor||o.produtor||''});
           completadas.push(o.numeroLote);
         } else problemas.push(f.name+': a ordem '+o.numeroLote+' já existe no sistema (não importei de novo)');
         continue;
@@ -2627,16 +2808,17 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
       await db.collection('lotesTratamento').add({
         status:'aberta', numeroLote:o.numeroLote, cultivar:o.cultivar, quantidadeSementes:o.quantidadeSementes,
         data:o.data || todayISO(), produtor:o.produtor, observacaoPdf:o.observacaoPdf, tratamentoPdf:o.tratamentoPdf,
-        receitaNome:o.tratamentoPdf, lotesOrigem:o.lotesOrigem, lotesDetalhe:o.lotesDetalhe, pdfProdutos:o.pdfProdutos,
+        receitaNome:o.tratamentoPdf, lotesDetalhe:o.lotesDetalhe, ...idsDaOrdem(o.lotesDetalhe), lotePendente: !o.lotesDetalhe.length, pdfProdutos:o.pdfProdutos,
         sobraKg:0, itensConsumidos:[], operador:'', importadoPor:(currentUserData&&currentUserData.nome)||'Usuário',
         importadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         criadoEm: firebase.firestore.FieldValue.serverTimestamp()
       });
-      vistos.add(String(o.numeroLote)); ok.push(o.numeroLote);
+      vistos.add(String(o.numeroLote)); ok.push(o.numeroLote); if(!o.lotesDetalhe.length) pendentes.push(o.numeroLote);
     }catch(e){ problemas.push(f.name+': '+(e && e.message ? e.message : 'erro ao ler')); }
   }
   if(ok.length) toast('Ordem'+(ok.length>1?'s':'')+' '+ok.join(', ')+' importada'+(ok.length>1?'s':'')+' e aberta'+(ok.length>1?'s':'')+' (estoque ainda não baixou)');
   if(completadas.length) toast('Lotes de semente guardados na ordem '+completadas.join(', '));
+  if(pendentes.length) toast('Sem lote no PDF: ordem '+pendentes.join(', ')+' entrou com LOTE PENDENTE — informe o lote antes de fechar', true);
   if(problemas.length) alert('Atenção:\n\n• '+problemas.join('\n• '));
 });
 function receitaDaOrdem(o){
@@ -2672,13 +2854,14 @@ function renderAbertas(){
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span class="card-title" style="margin:0;">Ordens abertas</span>
       <span style="background:#fff4d6; color:#8a6100; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700;">${lista.length}</span>
+      ${lista.some(ordemSemLote) ? `<span style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700;">${lista.filter(ordemSemLote).length} com lote pendente</span>` : ''}
       <span style="margin-left:auto; font-size:12.5px; color:var(--text-soft);">O estoque só baixa quando você fechar a ordem</span>
     </div>
     ${lista.map(o=>{
       const av = avisosOrdemAberta(o);
       return `<div style="border-top:1px solid var(--border); padding:10px 0; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex:1; min-width:240px;">
-          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b> · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))}</div>
+          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b>${ordemSemLote(o)?' <span class="selo-lote-pendente" style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:800; letter-spacing:.03em;">LOTE PENDENTE</span>':''} · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))}</div>
           <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
           <div style="font-size:12.5px; margin-top:3px; color:var(--text-soft);">${(()=>{
             const imp = _seg(o.importadoEm || o.criadoEm), ini = _seg(o.iniciadoEm), agora = Date.now()/1000;
@@ -2692,7 +2875,7 @@ function renderAbertas(){
             }
             return imps+(imp!=null?' · <b>aguardando início há '+fmtDur((agora-imp)/60)+'</b>':'');
           })()}</div>
-          ${(o.lotesDetalhe&&o.lotesDetalhe.length) ? `<div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">Lotes: ${o.lotesDetalhe.map(x=>esc(x.origem)+(x.destino&&x.destino!==x.origem?' → '+esc(x.destino):'')+' ('+fmtNum(x.kg)+' kg)').join(' · ')}</div>` : ''}
+          ${(o.lotesDetalhe&&o.lotesDetalhe.length) ? `<div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">Lotes: ${o.lotesDetalhe.map(x=>esc(x.origem)+(x.destino&&x.destino!==x.origem?' → '+esc(x.destino):'')+(x.kg!=null?' ('+fmtNum(x.kg)+' kg)':'')).join(' · ')}</div>` : '<div style="font-size:12.5px; color:var(--danger); margin-top:2px;">Sem lote de semente no PDF — informe o lote para poder fechar a ordem</div>'}
           ${av.length ? `<div style="font-size:12px; color:#8a6100; margin-top:4px;">⚠ ${av.slice(0,4).map(esc).join('<br>⚠ ')}${av.length>4?'<br>… e mais '+(av.length-4):''}</div>` : ''}
         </div>
         ${viewer ? '' : `<div style="display:flex; gap:8px;">
@@ -2701,7 +2884,8 @@ function renderAbertas(){
               : `<button class="btn btn-ghost btn-sm" style="border-color:#e0a800; color:#8a6100; font-weight:700;" onclick='pausarOrdem("${o.id}")' title="Parar o relógio (fim do expediente, quebra, almoço...)">⏸ Pausar</button>`)
               + `<button class="btn btn-ghost btn-sm" onclick='ajustarInicio("${o.id}")' title="Corrigir o horário em que o tratamento começou">Ajustar início</button>`
                          : `<button class="btn btn-ghost btn-sm" style="border-color:var(--green); color:var(--green-dark); font-weight:700;" onclick='iniciarOrdem("${o.id}")'>▶ Iniciar tratamento</button>`}
-          <button class="btn btn-primary btn-sm" onclick='fecharOrdem("${o.id}")'>Fechar ordem</button>
+          ${ordemSemLote(o) ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--danger); color:var(--danger); font-weight:700;" onclick='informarLote("${o.id}")'>Informar lote</button>` : ''}
+          <button class="btn btn-primary btn-sm" onclick='fecharOrdem("${o.id}")' ${ordemSemLote(o)?'disabled title="Informe o lote antes de fechar"':''}>Fechar ordem</button>
           <button class="btn btn-ghost btn-sm so-admin" style="color:var(--danger);" onclick='excluirAberta("${o.id}")' title="Excluir esta ordem aberta (não mexe no estoque)">Excluir</button>
         </div>`}
       </div>`; }).join('')}
@@ -2717,6 +2901,7 @@ function cultivarParaOpcao(c){
 }
 function fecharOrdem(id){
   const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
+  if(ordemSemLote(o)){ toast('Ordem '+o.numeroLote+' está com LOTE PENDENTE — informe o lote antes de fechar', true); informarLote(id); return; }
   fechandoOrdemId = id;
   document.getElementById('loteModalTitle').textContent = 'Fechar ordem '+o.numeroLote;
   document.getElementById('btnSalvarLote').textContent = 'Fechar ordem e baixar estoque';
@@ -2732,6 +2917,7 @@ function fecharOrdem(id){
   document.getElementById('lSobra').value = '';
   document.getElementById('lOperador').value = '';
   document.getElementById('lData').value = o.data || todayISO();
+  EDITORES.l.preparar(o);
   loteItensAtuais = [];
   calcularConsumoLote();
   openModal('modalLote');
@@ -2878,7 +3064,7 @@ function verLote(id){
     + (lotesSem.length ? sec('Lotes de semente',
       `<div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px;"><table style="margin:0;"><thead><tr><th>Lote</th><th>Quantidade</th><th>Peso do bag</th><th>PMS</th><th style="text-align:right;">Total</th></tr></thead><tbody>
         ${lotesSem.map(x=>`<tr><td><b>${esc(x.origem)}</b>${x.destino&&x.destino!==x.origem?'<div style="font-size:11.5px; color:var(--text-mute);">destino: '+esc(x.destino)+'</div>':''}</td>
-          <td>${fmtNum(x.qtdOrigem)} ${esc(x.unidade||'')}</td><td>${fmtNum(x.pesoBag)} kg</td><td>${fmtNum(x.pms)}</td><td style="text-align:right;"><b>${fmtNum(x.kg)} kg</b></td></tr>`).join('')}
+          <td>${x.qtdOrigem!=null ? fmtNum(x.qtdOrigem)+' '+esc(x.unidade||'') : '—'}</td><td>${x.pesoBag!=null ? fmtNum(x.pesoBag)+' kg' : '—'}</td><td>${x.pms!=null ? fmtNum(x.pms) : '—'}</td><td style="text-align:right;"><b>${x.kg!=null ? fmtNum(x.kg)+' kg' : '—'}</b></td></tr>`).join('')}
       </tbody></table></div>`) : '')
     + sec('Tempo', temTempo
       ? `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;">
