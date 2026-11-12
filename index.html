@@ -819,7 +819,8 @@ body.perfil-nao-admin .so-admin{display:none !important;}
         <div id="mEmpItens"></div>
         <button type="button" class="btn btn-ghost btn-sm" id="btnAddEmpItem" style="margin:2px 0 14px;">+ Adicionar outro produto</button>
         <div class="form-grid">
-          <div class="field full"><label>Nome de quem recebeu <span style="color:var(--danger);">*</span></label><input type="text" id="mEmpRecebedor" placeholder="Nome completo"></div>
+          <div class="field"><label>Quem entregou <span style="color:var(--danger);">*</span></label><input type="text" id="mEmpEntregador" placeholder="Nome de quem entregou"></div>
+          <div class="field"><label>Quem recebeu <span style="color:var(--danger);">*</span></label><input type="text" id="mEmpRecebedor" placeholder="Nome completo"></div>
           <div class="field"><label>Empresa/Propriedade</label><input type="text" id="mEmpEmpresa" placeholder="Opcional"></div>
           <div class="field"><label>Previsão de devolução</label><input type="date" id="mEmpPrevisao"></div>
           <div class="field full"><label>Observação/Finalidade</label><textarea id="mEmpFinalidade" rows="2" placeholder="Opcional"></textarea></div>
@@ -1868,6 +1869,8 @@ function updateEmpBox(){
 function resetEmpBox(){
   document.getElementById('mEmpItens').innerHTML = '';
   ['mEmpRecebedor','mEmpEmpresa','mEmpPrevisao','mEmpFinalidade'].forEach(id=> document.getElementById(id).value = '');
+  // "Quem entregou" já vem com o nome do usuário logado (pode editar antes de salvar)
+  document.getElementById('mEmpEntregador').value = (currentUserData && currentUserData.nome && currentUserData.nome!=='Usuário') ? currentUserData.nome : '';
 }
 function addEmpItemRow(){
   const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${fmtNum(p.quantidade)} ${esc(p.unidade)})</option>`).join('');
@@ -1922,8 +1925,10 @@ document.getElementById('btnSalvarMov').addEventListener('click', ()=>{
 ========================================================= */
 let ultimoEmprestimo = null;
 function salvarEmprestimo(){
+  const entregador = document.getElementById('mEmpEntregador').value.trim();
+  if(!entregador){ toast('Informe quem entregou', true); document.getElementById('mEmpEntregador').focus(); return; }
   const recebedor = document.getElementById('mEmpRecebedor').value.trim();
-  if(!recebedor){ toast('Informe o nome de quem recebeu', true); document.getElementById('mEmpRecebedor').focus(); return; }
+  if(!recebedor){ toast('Informe quem recebeu', true); document.getElementById('mEmpRecebedor').focus(); return; }
 
   // produto principal + linhas extras
   const brutos = [{ produtoId: document.getElementById('mProduto').value, qtd: Number(document.getElementById('mQuantidade').value) }];
@@ -1951,6 +1956,7 @@ function salvarEmprestimo(){
   const empId = refs[0].id;
   const emp = {
     id: empId,
+    entregador,
     recebedor,
     empresa: document.getElementById('mEmpEmpresa').value.trim(),
     previsaoDevolucao: document.getElementById('mEmpPrevisao').value || '',
@@ -1993,7 +1999,7 @@ function termoEmprestimoDoHistorico(empId){
   const m0 = movs[0], e = m0.emprestimo;
   const reg = movs.map(m=> m.criadoEm && m.criadoEm.toDate ? m.criadoEm.toDate() : null).filter(Boolean)[0] || null;
   imprimirTermoEmprestimo({
-    id: e.id, recebedor: e.recebedor, empresa: e.empresa, previsaoDevolucao: e.previsaoDevolucao, finalidade: e.finalidade,
+    id: e.id, entregador: e.entregador || m0.responsavel, recebedor: e.recebedor, empresa: e.empresa, previsaoDevolucao: e.previsaoDevolucao, finalidade: e.finalidade,
     data: m0.data, responsavel: m0.responsavel, registradoEm: reg,
     itens: movs.map(m=>{
       const prod = produtos.find(p=>p.id===m.produtoId);
@@ -2026,7 +2032,8 @@ function imprimirTermoEmprestimo(t){
         ${linha('Nº da movimentação', esc(numeroEmprestimo(t.id)))}
         ${linha('Data e hora', fmtDate(t.data)+' às '+hora)}
         ${linha('Responsável pela saída', esc(t.responsavel||'—'))}
-        ${linha('Recebido por', '<b>'+esc(t.recebedor)+'</b>')}
+        ${linha('Quem entregou', '<b>'+esc(t.entregador||t.responsavel||'—')+'</b>')}
+        ${linha('Quem recebeu', '<b>'+esc(t.recebedor)+'</b>')}
         ${linha('Empresa/Propriedade', esc(t.empresa||'—'))}
         ${t.previsaoDevolucao ? linha('Previsão de devolução', fmtDate(t.previsaoDevolucao)) : ''}
       </table>
@@ -2042,8 +2049,8 @@ function imprimirTermoEmprestimo(t){
       <div class="termo-texto">Declaro ter recebido os produtos acima relacionados a título de empréstimo, responsabilizando-me pela sua guarda e posterior devolução/acerto conforme combinado.</div>
 
       <div class="termo-assin">
+        <div><div class="linha"></div><b>${esc(t.entregador||t.responsavel||'')}</b><div class="sub">Assinatura de quem entregou — Sementes com Vigor</div></div>
         <div><div class="linha"></div><b>${esc(t.recebedor)}</b><div class="sub">Assinatura de quem recebeu${t.empresa ? ' — '+esc(t.empresa) : ''}</div></div>
-        <div><div class="linha"></div><b>${esc(t.responsavel||'')}</b><div class="sub">Responsável — Sementes com Vigor</div></div>
       </div>
 
       <div class="print-footer"><span>Sementes com Vigor — Estoque TSI</span><span>Emitido em ${agora.toLocaleDateString('pt-BR')} ${agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span></div>
