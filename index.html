@@ -2031,7 +2031,6 @@ function imprimirTermoEmprestimo(t){
       <table class="termo-info">
         ${linha('Nº da movimentação', esc(numeroEmprestimo(t.id)))}
         ${linha('Data e hora', fmtDate(t.data)+' às '+hora)}
-        ${linha('Responsável pela saída', esc(t.responsavel||'—'))}
         ${linha('Quem entregou', '<b>'+esc(t.entregador||t.responsavel||'—')+'</b>')}
         ${linha('Quem recebeu', '<b>'+esc(t.recebedor)+'</b>')}
         ${linha('Empresa/Propriedade', esc(t.empresa||'—'))}
