@@ -133,11 +133,11 @@ input, select, textarea{font-family:inherit;}
 .login-sub{font-size:13.5px; color:var(--text-mute); margin-bottom:28px;}
 .field{margin-bottom:16px;}
 .field label{display:block; font-size:12.5px; font-weight:600; color:var(--text-soft); margin-bottom:6px; letter-spacing:.01em;}
-.field input, .field select, .field textarea{
+.field input, .field select, .field textarea, .emp-item-row select, .emp-item-row input{
   width:100%; padding:11px 13px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
   font-size:14.5px; color:var(--text); background:#FCFDFC; transition:border-color .15s, box-shadow .15s;
 }
-.field input:focus, .field select:focus, .field textarea:focus{
+.field input:focus, .field select:focus, .field textarea:focus, .emp-item-row select:focus, .emp-item-row input:focus{
   outline:none; border-color:var(--green); box-shadow:0 0 0 3px rgba(46,125,79,.12);
 }
 .btn{
@@ -370,6 +370,31 @@ tbody tr:hover{background:#FAFCFA;}
 .print-table tbody td{ padding:8px 12px; border-bottom:1px solid #E2E8E5; }
 .print-table tbody tr:nth-child(even){ background:#F4F6F5; }
 .print-footer{ margin-top:22px; padding-top:12px; border-top:1px solid #E2E8E5; font-size:10.5px; color:#8A9691; display:flex; justify-content:space-between; }
+
+/* ===== Empréstimo: caixa no formulário ===== */
+.emp-box{ margin-top:16px; padding:14px 16px; border:1.5px solid var(--green); border-radius:10px; background:rgba(46,125,79,.05); }
+.emp-box-title{ font-weight:700; color:var(--green); margin-bottom:4px; }
+.emp-box-sub{ font-size:12px; color:var(--text-mute); margin-bottom:10px; }
+.emp-item-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.emp-item-row select{ flex:2; min-width:0; }
+.emp-item-row input{ flex:1; min-width:0; }
+.emp-print-btn{ background:none; border:1px solid var(--border); border-radius:6px; padding:2px 7px; cursor:pointer; font-size:13px; margin-left:6px; }
+.emp-print-btn:hover{ border-color:var(--green); }
+
+/* ===== Termo de Empréstimo (impressão A4) ===== */
+@page termo{ size:A4; margin:16mm 16mm 14mm; }
+.termo-doc{ page:termo; font-family:'Inter',Arial,sans-serif; color:#1C2521; font-size:12.5px; line-height:1.45; }
+.termo-titulo{ text-align:center; font-family:'Sora',sans-serif; font-weight:800; font-size:17px; letter-spacing:.04em; color:#1B4332; margin:6px 0 18px; }
+.termo-info{ width:100%; border-collapse:collapse; margin-bottom:16px; font-size:12px; }
+.termo-info td{ padding:6px 10px; border:1px solid #CBD5D0; vertical-align:top; }
+.termo-info td.k{ width:30%; background:#F4F6F5; font-weight:600; color:#1B4332; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.termo-sec{ font-weight:700; color:#1B4332; text-transform:uppercase; font-size:11px; letter-spacing:.04em; margin:14px 0 6px; }
+.termo-texto{ margin:20px 0 10px; text-align:justify; font-size:12.5px; }
+.termo-local{ margin:16px 0 0; font-size:12px; }
+.termo-assin{ display:flex; gap:40px; margin-top:60px; page-break-inside:avoid; }
+.termo-assin > div{ flex:1; text-align:center; font-size:11.5px; }
+.termo-assin .linha{ border-top:1px solid #1C2521; margin-bottom:6px; }
+.termo-assin .sub{ color:#5B6B64; font-size:10.5px; }
 
 .co-top{ grid-template-columns:220px 1fr; }
 .grid-2 > *, .card, .kpi-body{ min-width:0; }
@@ -787,10 +812,35 @@ body.perfil-nao-admin .so-admin{display:none !important;}
         <div class="field"><label>Data</label><input type="date" id="mData"></div>
         <div class="field full"><label>Observações</label><textarea id="mObs" rows="2"></textarea></div>
       </div>
+      <!-- Campos extras: só aparecem quando Tipo = Saída e Motivo = Empréstimo -->
+      <div id="mEmpBox" class="emp-box" style="display:none;">
+        <div class="emp-box-title">Dados do empréstimo</div>
+        <div class="emp-box-sub">Outros produtos neste mesmo empréstimo (opcional) — todos saem no mesmo termo</div>
+        <div id="mEmpItens"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddEmpItem" style="margin:2px 0 14px;">+ Adicionar outro produto</button>
+        <div class="form-grid">
+          <div class="field full"><label>Nome de quem recebeu <span style="color:var(--danger);">*</span></label><input type="text" id="mEmpRecebedor" placeholder="Nome completo"></div>
+          <div class="field"><label>Empresa/Propriedade</label><input type="text" id="mEmpEmpresa" placeholder="Opcional"></div>
+          <div class="field"><label>Previsão de devolução</label><input type="date" id="mEmpPrevisao"></div>
+          <div class="field full"><label>Observação/Finalidade</label><textarea id="mEmpFinalidade" rows="2" placeholder="Opcional"></textarea></div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modalMov')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarMov">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: EMPRÉSTIMO REGISTRADO ============ -->
+<div class="modal-overlay" id="modalEmpOk">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Empréstimo registrado</div><button class="modal-close" onclick="closeModal('modalEmpOk')">✕</button></div>
+    <div class="modal-body" id="empOkBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalEmpOk')">Fechar</button>
+      <button class="btn btn-primary" id="btnGerarTermoEmp">🖨️ Gerar Termo de Empréstimo</button>
     </div>
   </div>
 </div>
@@ -1806,16 +1856,40 @@ function updateMotivos(){
   const tipo = document.getElementById('mTipo').value;
   const motivos = tipo==='entrada' ? MOTIVOS_ENTRADA : MOTIVOS_SAIDA;
   document.getElementById('mMotivo').innerHTML = motivos.map(m=>`<option>${m}</option>`).join('');
+  updateEmpBox();
 }
+/* Empréstimo: campos extras só para Saída + Empréstimo (não mexe na baixa de estoque) */
+function isModoEmprestimo(){
+  return document.getElementById('mTipo').value==='saida' && document.getElementById('mMotivo').value==='Empréstimo';
+}
+function updateEmpBox(){
+  document.getElementById('mEmpBox').style.display = isModoEmprestimo() ? '' : 'none';
+}
+function resetEmpBox(){
+  document.getElementById('mEmpItens').innerHTML = '';
+  ['mEmpRecebedor','mEmpEmpresa','mEmpPrevisao','mEmpFinalidade'].forEach(id=> document.getElementById(id).value = '');
+}
+function addEmpItemRow(){
+  const opts = produtos.map(p=>`<option value="${p.id}">${esc(p.nome)} (${fmtNum(p.quantidade)} ${esc(p.unidade)})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'emp-item-row';
+  row.innerHTML = `<select class="emp-prod">${opts}</select>
+    <input type="number" step="0.01" class="emp-qtd" placeholder="Quantidade">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" title="Remover">✕</button>`;
+  document.getElementById('mEmpItens').appendChild(row);
+}
+document.getElementById('btnAddEmpItem').addEventListener('click', addEmpItemRow);
+document.getElementById('mMotivo').addEventListener('change', updateEmpBox);
 document.getElementById('mTipo').addEventListener('change', updateMotivos);
 document.getElementById('btnNovaMov').addEventListener('click', ()=>{
-  fillProdutoSelects(); updateMotivos();
+  fillProdutoSelects(); updateMotivos(); resetEmpBox();
   document.getElementById('mQuantidade').value = '';
   document.getElementById('mObs').value = '';
   document.getElementById('mData').value = todayISO();
   openModal('modalMov');
 });
 document.getElementById('btnSalvarMov').addEventListener('click', ()=>{
+  if(isModoEmprestimo()){ salvarEmprestimo(); return; }
   const produtoId = document.getElementById('mProduto').value;
   const produto = produtos.find(p=>p.id===produtoId);
   if(!produto){ toast('Selecione um produto', true); return; }
@@ -1840,6 +1914,148 @@ document.getElementById('btnSalvarMov').addEventListener('click', ()=>{
   batch.commit().then(()=>{ closeModal('modalMov'); toast('Movimentação registrada'); })
     .catch(()=>toast('Erro ao registrar movimentação', true));
 });
+
+/* =========================================================
+   EMPRÉSTIMO — cada produto vira uma movimentação de SAÍDA comum
+   (mesmos campos e mesma baixa de estoque de hoje). Só acrescenta o
+   objeto "emprestimo" (mesmo id em todos os produtos) para gerar o termo.
+========================================================= */
+let ultimoEmprestimo = null;
+function salvarEmprestimo(){
+  const recebedor = document.getElementById('mEmpRecebedor').value.trim();
+  if(!recebedor){ toast('Informe o nome de quem recebeu', true); document.getElementById('mEmpRecebedor').focus(); return; }
+
+  // produto principal + linhas extras
+  const brutos = [{ produtoId: document.getElementById('mProduto').value, qtd: Number(document.getElementById('mQuantidade').value) }];
+  document.querySelectorAll('#mEmpItens .emp-item-row').forEach(r=>{
+    brutos.push({ produtoId: r.querySelector('.emp-prod').value, qtd: Number(r.querySelector('.emp-qtd').value) });
+  });
+  const itens = [];
+  const vistos = new Set();
+  for(const b of brutos){
+    const produto = produtos.find(p=>p.id===b.produtoId);
+    if(!produto){ toast('Selecione um produto', true); return; }
+    if(!b.qtd || b.qtd<=0){ toast('Informe uma quantidade válida para '+produto.nome, true); return; }
+    if(vistos.has(produto.id)){ toast(produto.nome+' está repetido no empréstimo — junte numa linha só', true); return; }
+    vistos.add(produto.id);
+    const novoSaldo = (Number(produto.quantidade)||0) - b.qtd;
+    if(novoSaldo < 0){ toast('Estoque insuficiente de '+produto.nome, true); return; }
+    itens.push({ produto, qtd: b.qtd, novoSaldo });
+  }
+
+  const data = document.getElementById('mData').value;
+  const obs = document.getElementById('mObs').value.trim();
+  const responsavel = currentUserData.nome || 'Usuário';
+  const batch = db.batch();
+  const refs = itens.map(()=> db.collection('movimentacoes').doc());
+  const empId = refs[0].id;
+  const emp = {
+    id: empId,
+    recebedor,
+    empresa: document.getElementById('mEmpEmpresa').value.trim(),
+    previsaoDevolucao: document.getElementById('mEmpPrevisao').value || '',
+    finalidade: document.getElementById('mEmpFinalidade').value.trim()
+  };
+  itens.forEach((it, i)=>{
+    batch.set(refs[i], {
+      produtoId: it.produto.id, produtoNome: it.produto.nome, tipo: 'saida',
+      motivo: 'Empréstimo',
+      quantidade: it.qtd, data,
+      observacoes: obs,
+      responsavel,
+      saldoApos: it.novoSaldo,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      emprestimo: Object.assign({}, emp, { unidade: it.produto.unidade || '' })
+    });
+    batch.update(db.collection('produtos').doc(it.produto.id), { quantidade: it.novoSaldo });
+  });
+  batch.commit().then(()=>{
+    closeModal('modalMov');
+    toast('Empréstimo registrado');
+    ultimoEmprestimo = Object.assign({}, emp, {
+      data, responsavel, registradoEm: new Date(),
+      itens: itens.map(it=>({ nome: it.produto.nome, quantidade: it.qtd, unidade: it.produto.unidade || '' }))
+    });
+    document.getElementById('empOkBody').innerHTML = `
+      <p style="margin-bottom:8px;">Movimentação <b>${esc(numeroEmprestimo(empId))}</b> registrada e estoque baixado.</p>
+      <p style="font-size:13px; color:var(--text-mute);">${itens.length} produto(s) para <b>${esc(recebedor)}</b>. Gere o termo para imprimir ou salvar em PDF e colher a assinatura.</p>`;
+    openModal('modalEmpOk');
+  }).catch(()=>toast('Erro ao registrar movimentação', true));
+}
+document.getElementById('btnGerarTermoEmp').addEventListener('click', ()=>{ if(ultimoEmprestimo) imprimirTermoEmprestimo(ultimoEmprestimo); });
+
+function numeroEmprestimo(id){ return 'EMP-' + String(id||'').slice(0,8).toUpperCase(); }
+
+/* Reabre o termo a partir do histórico (junta todas as movimentações do mesmo empréstimo) */
+function termoEmprestimoDoHistorico(empId){
+  const movs = movimentacoes.filter(m=> m.emprestimo && m.emprestimo.id===empId);
+  if(!movs.length){ toast('Empréstimo não encontrado', true); return; }
+  const m0 = movs[0], e = m0.emprestimo;
+  const reg = movs.map(m=> m.criadoEm && m.criadoEm.toDate ? m.criadoEm.toDate() : null).filter(Boolean)[0] || null;
+  imprimirTermoEmprestimo({
+    id: e.id, recebedor: e.recebedor, empresa: e.empresa, previsaoDevolucao: e.previsaoDevolucao, finalidade: e.finalidade,
+    data: m0.data, responsavel: m0.responsavel, registradoEm: reg,
+    itens: movs.map(m=>{
+      const prod = produtos.find(p=>p.id===m.produtoId);
+      return { nome: m.produtoNome, quantidade: m.quantidade, unidade: m.emprestimo.unidade || (prod ? prod.unidade : '') };
+    })
+  });
+}
+
+function imprimirTermoEmprestimo(t){
+  const agora = new Date();
+  const reg = t.registradoEm || agora;
+  const hora = reg.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  const linha = (k, v)=> `<tr><td class="k">${k}</td><td>${v}</td></tr>`;
+  document.getElementById('printReport').innerHTML = `
+    <div class="termo-doc">
+      <div class="print-header">
+        <div class="print-mark">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 8c0 4 3.5 6 8 6s8-2 8-6M4 8c2-3 5-4 8-4s6 1 8 4M4 8v8c0 3 4 6 8 6s8-3 8-6V8"/></svg>
+        </div>
+        <div>
+          <div class="print-brand">Sementes com Vigor</div>
+          <div class="print-brand-sub">Estoque TSI — Tratamento Industrial de Sementes</div>
+        </div>
+        <div class="print-meta">Nº <b>${esc(numeroEmprestimo(t.id))}</b><br>${fmtDate(t.data)} às ${hora}</div>
+      </div>
+
+      <div class="termo-titulo">TERMO DE EMPRÉSTIMO DE PRODUTO</div>
+
+      <table class="termo-info">
+        ${linha('Nº da movimentação', esc(numeroEmprestimo(t.id)))}
+        ${linha('Data e hora', fmtDate(t.data)+' às '+hora)}
+        ${linha('Responsável pela saída', esc(t.responsavel||'—'))}
+        ${linha('Recebido por', '<b>'+esc(t.recebedor)+'</b>')}
+        ${linha('Empresa/Propriedade', esc(t.empresa||'—'))}
+        ${t.previsaoDevolucao ? linha('Previsão de devolução', fmtDate(t.previsaoDevolucao)) : ''}
+      </table>
+
+      <div class="termo-sec">Produtos emprestados</div>
+      <table class="print-table">
+        <thead><tr><th style="width:8%;">#</th><th>Produto</th><th style="width:20%; text-align:right;">Quantidade</th><th style="width:14%;">Unidade</th></tr></thead>
+        <tbody>${t.itens.map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.nome)}</td><td style="text-align:right;"><b>${fmtNum(it.quantidade)}</b></td><td>${esc(it.unidade||'—')}</td></tr>`).join('')}</tbody>
+      </table>
+
+      ${t.finalidade ? `<div class="termo-sec">Observação/Finalidade</div><div style="white-space:pre-wrap;">${esc(t.finalidade)}</div>` : ''}
+
+      <div class="termo-texto">Declaro ter recebido os produtos acima relacionados a título de empréstimo, responsabilizando-me pela sua guarda e posterior devolução/acerto conforme combinado.</div>
+
+      <div class="termo-assin">
+        <div><div class="linha"></div><b>${esc(t.recebedor)}</b><div class="sub">Assinatura de quem recebeu${t.empresa ? ' — '+esc(t.empresa) : ''}</div></div>
+        <div><div class="linha"></div><b>${esc(t.responsavel||'')}</b><div class="sub">Responsável — Sementes com Vigor</div></div>
+      </div>
+
+      <div class="print-footer"><span>Sementes com Vigor — Estoque TSI</span><span>Emitido em ${agora.toLocaleDateString('pt-BR')} ${agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span></div>
+    </div>`;
+  // nome sugerido do PDF
+  const tituloOriginal = document.title;
+  document.title = 'Termo de Emprestimo ' + numeroEmprestimo(t.id);
+  const restaurar = ()=>{ document.title = tituloOriginal; window.removeEventListener('afterprint', restaurar); };
+  window.addEventListener('afterprint', restaurar);
+  window.print();
+  setTimeout(restaurar, 1500);
+}
 
 /* =========================================================
    ACERTO INICIAL: entrada inicial + baixa retroativa das ordens já lançadas
@@ -1986,7 +2202,7 @@ function renderMovimentacoes(){
       <td>${fmtDate(m.data)}</td>
       <td><b>${esc(m.produtoNome)}</b></td>
       <td><span class="badge ${m.tipo==='entrada'?'badge-ok':'badge-danger'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td>
-      <td>${esc(m.motivo)}</td>
+      <td>${esc(m.motivo)}${m.emprestimo && m.emprestimo.id ? ` <button class="emp-print-btn" title="Gerar Termo de Empréstimo" onclick='termoEmprestimoDoHistorico(${JSON.stringify(String(m.emprestimo.id))})'>🖨️</button>` : ''}</td>
       <td><b>${fmtNum(m.quantidade)}</b></td>
       <td>${fmtNum(m.saldoApos)}</td>
       <td>${esc(m.responsavel||'—')}</td>
