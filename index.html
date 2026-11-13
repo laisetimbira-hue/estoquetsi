@@ -549,6 +549,10 @@ body.perfil-nao-admin .so-admin{display:none !important;}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
         <div class="page-title" id="pageTitle">Centro de Operações</div>
+        <style>@media (max-width:700px){ .safra-op .safra-op-txt{display:none;} .safra-op select{padding:5px 6px !important; font-size:12px !important; max-width:118px;} }</style>
+        <label class="safra-op" title="Safra usada nas ordens NOVAS (manual e PDF). Não muda ordens já gravadas nem o estoque de produtos, que é único." style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--text-soft);white-space:nowrap;flex-shrink:0;"><span class="safra-op-txt">Safra em operação</span>
+          <select id="tsiSafraOperacional" autocomplete="off" style="padding:6px 10px;border:1.5px solid var(--green);border-radius:999px;background:var(--surface);font-weight:700;font-size:12.5px;color:var(--green-dark);"></select>
+        </label>
         <a href="https://portal.seedmax.com.br/" class="seedmax-portal-link" title="Voltar ao Portal SEEDMAX" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;opacity:.75;color:inherit;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;line-height:1;flex-shrink:0;">&larr; Portal</a>
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -573,6 +577,8 @@ body.perfil-nao-admin .so-admin{display:none !important;}
               <option value="sc">Volume em: SC 125k</option>
               <option value="bb">Volume em: BB 5MM</option>
             </select>
+            <select class="chip-filter" id="coSafra" autocomplete="off" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas as safras</option></select>
+            <select class="chip-filter" id="coCultura" autocomplete="off" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas as culturas</option></select>
             <select class="chip-filter" id="coCultivar" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todos os cultivares</option></select>
             <select class="chip-filter" id="coOperador" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todos">Todos os operadores</option></select>
             <select class="chip-filter" id="coReceita" style="border:1.5px solid var(--border); background:var(--surface);"><option value="todas">Todas as receitas</option></select>
@@ -938,6 +944,8 @@ body.perfil-nao-admin .so-admin{display:none !important;}
     <div class="modal-head"><div class="modal-title" id="loteModalTitle">Tratar novo lote</div><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="field"><label>Safra</label><select id="lSafra" autocomplete="off"></select></div>
+        <div class="field"><label>Cultura</label><select id="lCultura" autocomplete="off"></select></div>
         <div class="field"><label>Cultivar</label>
           <select id="lCultivar">
             <option value="95Y95IPRO">95Y95IPRO</option>
@@ -974,7 +982,8 @@ body.perfil-nao-admin .so-admin{display:none !important;}
             <option value="Zeus">Zeus (55I57RSF IPRO)</option>
             <option value="Outro">Outro (digitar manualmente)</option>
           </select>
-          <input id="lCultivarManual" placeholder="Digite o nome do cultivar" style="display:none; margin-top:8px;">
+          <input id="lCultivarManual" placeholder="Digite o nome do cultivar" list="lCultivaresInverno" style="display:none; margin-top:8px;">
+          <datalist id="lCultivaresInverno"></datalist>
         </div>
         <div class="field"><label>N° da ordem</label><input id="lLote" placeholder="Número da ordem do sistema"></div>
         <div class="field"><label>Quantidade de sementes (kg)</label><input type="number" step="0.01" id="lQuantidade" placeholder="0"></div>
@@ -997,6 +1006,23 @@ body.perfil-nao-admin .so-admin{display:none !important;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modalLote')">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarLote">Confirmar tratamento e baixar estoque</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalImportPdf">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">Importar PDF da ordem</div><button class="modal-close" onclick="closeModal('modalImportPdf')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:13px; color:var(--text-soft); margin-bottom:12px;">As ordens importadas agora serão gravadas com esta safra e cultura. A ordem fica aberta e o estoque só baixa quando você fechar.</div>
+      <div class="form-grid">
+        <div class="field"><label>Safra</label><select id="pdfSafra" autocomplete="off"></select></div>
+        <div class="field"><label>Cultura</label><select id="pdfCultura" autocomplete="off"></select></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modalImportPdf')">Cancelar</button>
+      <button class="btn btn-primary" id="btnEscolherPdf">Escolher PDF(s)</button>
     </div>
   </div>
 </div>
@@ -1069,14 +1095,32 @@ body.perfil-nao-admin .so-admin{display:none !important;}
    Substitua pelos dados do seu projeto Firebase antes de publicar.
 ========================================================= */
 /* =========================================================
-   SAFRA ATIVA — ÚNICO lugar para trocar a safra no TSI.
-   Usada para montar o identificador do lote da Central de Lotes
-   (lotId = SAFRA_LOTE, ex.: SOJA2526_26S133C) nas ordens novas.
-   Na virada de safra, trocar aqui E no robô da Central
-   (seedmax-qualidade/scripts/central_lotes.py → SAFRA_ATIVA), juntos.
+   SAFRA_ATIVA — mantida por compatibilidade. Desde safra-inverno o TSI
+   trabalha com Verão e Inverno juntos (ver SAFRAS logo abaixo); a safra
+   das ordens novas vem do seletor "Safra em operação" e do formulário.
    Ordens já gravadas guardam a safra delas (campo "safra") e não mudam.
 ========================================================= */
 const SAFRA_ATIVA = Object.freeze({ codigo: 'SOJA2526', nome: 'Soja 2025/2026' });
+
+/* =========================================================
+   SAFRAS — Verão e Inverno ao mesmo tempo (branch safra-inverno)
+   Códigos iguais aos da Gestão de Qualidade e da Central de Lotes.
+   * Ordens NOVAS gravam "safra" e "cultura".
+   * Ordem antiga sem safra/cultura é LIDA como SOJA2526 / Soja (nada é regravado).
+   * O estoque de produtos é ÚNICO (não é separado por safra).
+   * lotId = montarIdLote(safra, cultura, lote) — MESMA regra do robô da Central
+     (central_lotes.py → montar_id_lote) e do RASTREL:
+       Verão  → SOJA2526_26S133C (ID histórico)   Inverno → INV2626_TRIGO_27AB001
+========================================================= */
+const SAFRAS = Object.freeze({
+  SOJA2526: Object.freeze({ codigo:'SOJA2526', nome:'Verão 25/26', culturas:Object.freeze(['Soja']) }),
+  INV2626:  Object.freeze({ codigo:'INV2626',  nome:'Inverno 26/26', culturas:Object.freeze(['Trigo','Cevada','Aveia Branca','Aveia Preta','Nabo','Ervilha','Ervilhaca','Trigo Mourisco']) }),
+});
+const SAFRA_LEITURA_PADRAO = 'SOJA2526';   // registros antigos sem "safra"
+const CULTURA_SOJA = 'Soja';
+const SAFRA_OPERACIONAL_PADRAO = 'INV2626'; // contexto operacional atual (pode trocar para Verão no topo)
+let safraOperacional = (()=>{ try{ const v = localStorage.getItem('tsiSafraOperacional'); return SAFRAS[v] ? v : SAFRA_OPERACIONAL_PADRAO; }catch(e){ return SAFRA_OPERACIONAL_PADRAO; } })();
+let culturaOperacional = (()=>{ try{ return localStorage.getItem('tsiCulturaOperacional') || ''; }catch(e){ return ''; } })();
 
 const firebaseConfig = {
   apiKey: "AIzaSyD4iZ7eGWWBx48D2sq7TcNhrpBg02ejhCQ",
@@ -1316,7 +1360,7 @@ function initListeners(){
   }));
   unsubs.push(db.collection('lotesTratamento').onSnapshot(snap=>{
     // nomes antigos de cultivar aparecem com o nome certo (Campacta→Compacta, DM65IX67 RSF I2X→Fúria); só na tela, o que está gravado não muda
-    const todasOrd = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(x.cultivar==='95Y95') x.cultivar = '95Y95IPRO'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; return x; });
+    const todasOrd = snap.docs.map(d=>{ const x = {id:d.id, ...d.data()}; if(x.cultivar==='Campacta') x.cultivar = 'Compacta'; if(x.cultivar==='DM65IX67 RSF I2X') x.cultivar = 'Fúria'; if(x.cultivar==='95Y95') x.cultivar = '95Y95IPRO'; if(String(x.operador||'').trim().toLowerCase()==='c') x.operador = 'Celso'; x._safra = safraDeLeitura(x.safra); x._cultura = culturaDeLeitura(x.cultura, x._safra); return x; });
     // ordens ABERTAS (importadas do PDF) ficam à parte: não baixam estoque nem entram nos números do Centro até serem fechadas
     lotesAbertas = todasOrd.filter(x=>x.status==='aberta');
     lotes = todasOrd.filter(x=>x.status!=='aberta');
@@ -1451,6 +1495,8 @@ function fmtEmbTxt(r){
 }
 function getCoFiltros(){
   return {
+    safra: document.getElementById('coSafra').value || 'todas',
+    cultura: document.getElementById('coCultura').value || 'todas',
     periodo: document.getElementById('coPeriodo').value,
     cultivar: document.getElementById('coCultivar').value,
     operador: document.getElementById('coOperador').value,
@@ -1472,9 +1518,27 @@ function dataDentroPeriodo(dataStr, range){
   const d = parseLocalDate(dataStr);
   return d >= range.start && d <= range.end;
 }
+/* Safra/cultura de uma movimentação: só as saídas de CONSUMO em tratamento pertencem a uma safra
+   (antigas, sem o campo, = SOJA2526/Soja). Entradas, ajustes e empréstimos são do estoque único → null. */
+const MOTIVO_CONSUMO = 'Consumo em tratamento de sementes';
+function safraCulturaDaMov(m){
+  if(m.safra) { const sf = safraDeLeitura(m.safra); return {safra:sf, cultura:culturaDeLeitura(m.cultura, sf)}; }
+  if(m.tipo==='saida' && m.motivo===MOTIVO_CONSUMO) return {safra:SAFRA_LEITURA_PADRAO, cultura:CULTURA_SOJA};
+  return null;
+}
 function populateCoFiltros(){
+  { // Safra e Cultura (as culturas acompanham a safra escolhida)
+    const selS = document.getElementById('coSafra'), selC = document.getElementById('coCultura');
+    const atS = selS.value || 'todas', atC = selC.value || 'todas';
+    selS.innerHTML = '<option value="todas">Todas as safras</option>' + Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)}</option>`).join('');
+    selS.value = SAFRAS[atS] ? atS : 'todas';
+    const culturas = selS.value==='todas' ? [...new Set(Object.values(SAFRAS).flatMap(x=>x.culturas))] : SAFRAS[selS.value].culturas.slice();
+    [...lotes].forEach(l=>{ if(l._cultura && !culturas.includes(l._cultura) && (selS.value==='todas' || l._safra===selS.value)) culturas.push(l._cultura); });
+    selC.innerHTML = '<option value="todas">Todas as culturas</option>' + culturas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    selC.value = culturas.includes(atC) ? atC : 'todas';
+  }
   const mapas = [
-    ['coCultivar', [...new Set(lotes.map(l=>l.cultivar).filter(Boolean))].sort(), 'todas', 'Todos os cultivares'],
+    ['coCultivar', [...new Set(lotes.filter(ordemNaSafraCultura).map(l=>l.cultivar).filter(Boolean))].sort(), 'todas', 'Todos os cultivares'],
     ['coOperador', [...new Set(lotes.map(l=>l.operador).filter(Boolean))].sort(), 'todos', 'Todos os operadores'],
     ['coCategoria', [...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort(), 'todas', 'Todas categorias']
   ];
@@ -1489,11 +1553,18 @@ function populateCoFiltros(){
   selReceita.innerHTML = '<option value="todas">Todas as receitas</option>' + receitas.map(r=>`<option value="${r.id}">${esc(r.nome)}</option>`).join('');
   if(receitas.some(r=>r.id===atualReceita)) selReceita.value = atualReceita;
 }
+function ordemNaSafraCultura(l){
+  const f = getCoFiltros();
+  if(f.safra!=='todas' && l._safra!==f.safra) return false;
+  if(f.cultura!=='todas' && l._cultura!==f.cultura) return false;
+  return true;
+}
 function lotesFiltrados(){
   const f = getCoFiltros();
   const range = periodoRange(f.periodo);
   return lotes.filter(l=>{
     if(!dataDentroPeriodo(l.data, range)) return false;
+    if(!ordemNaSafraCultura(l)) return false;
     if(f.cultivar!=='todas' && l.cultivar!==f.cultivar) return false;
     if(f.operador!=='todos' && (l.operador||'')!==f.operador) return false;
     if(f.receita!=='todas' && l.receitaId!==f.receita) return false;
@@ -1505,6 +1576,11 @@ function movsFiltradas(){
   const range = periodoRange(f.periodo);
   return movimentacoes.filter(m=>{
     if(!dataDentroPeriodo(m.data, range)) return false;
+    if(f.safra!=='todas' || f.cultura!=='todas'){
+      // consumo de tratamento: respeita Safra/Cultura; demais movimentações (estoque único) continuam aparecendo
+      const sc = safraCulturaDaMov(m);
+      if(sc && ((f.safra!=='todas' && sc.safra!==f.safra) || (f.cultura!=='todas' && sc.cultura!==f.cultura))) return false;
+    }
     if(f.categoria!=='todas'){
       const produto = produtos.find(p=>p.id===m.produtoId);
       if(!produto || produto.categoria!==f.categoria) return false;
@@ -1769,9 +1845,27 @@ function verProdutoNoCentro(id){
   const produto = produtos.find(p=>p.id===id);
   if(produto){ document.getElementById('globalSearch').value = produto.nome; renderProdutos(); }
 }
-['coPeriodo','coUnidade','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
+['coSafra','coCultura','coPeriodo','coUnidade','coCultivar','coOperador','coReceita','coCategoria'].forEach(id=>{
   document.getElementById(id).addEventListener('change', renderCentroOperacoes);
 });
+
+/* Safra em operação (topo): vale para as ordens NOVAS deste navegador. Padrão = Inverno. */
+(function(){
+  const sel = document.getElementById('tsiSafraOperacional');
+  sel.innerHTML = Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)}</option>`).join('');
+  sel.value = safraOperacional;
+  sel.addEventListener('change', ()=>{
+    safraOperacional = SAFRAS[sel.value] ? sel.value : SAFRA_OPERACIONAL_PADRAO;
+    culturaOperacional = '';
+    try{ localStorage.setItem('tsiSafraOperacional', safraOperacional); localStorage.removeItem('tsiCulturaOperacional'); }catch(e){}
+    toast('Safra em operação: '+nomeSafra(safraOperacional)+' — vale para as ordens novas');
+  });
+  // lembra a última cultura usada numa ordem nova (só sugestão para a próxima)
+  ['lCultura','pdfCultura'].forEach(id=> document.getElementById(id).addEventListener('change', e=>{
+    const sfSel = id==='lCultura' ? 'lSafra' : 'pdfSafra';
+    if(document.getElementById(sfSel).value===safraOperacional && e.target.value){ culturaOperacional = e.target.value; try{ localStorage.setItem('tsiCulturaOperacional', culturaOperacional); }catch(er){} }
+  }));
+})();
 
 /* =========================================================
    RELATÓRIO DO CENTRO DE OPERAÇÕES (PDF A4)
@@ -1861,10 +1955,12 @@ function emitirRelatorioCentro(){
     </div>
 
     <div class="corel-titulo">SEMENTES COM VIGOR — RELATÓRIO DO CENTRO DE OPERAÇÕES TSI</div>
-    <div class="corel-subtitulo">Período: <b>${esc(periodoTxt)}</b></div>
+    <div class="corel-subtitulo">Período: <b>${esc(periodoTxt)}</b> · Safra: <b>${esc(_textoSelect('coSafra'))}</b> · Cultura: <b>${esc(_textoSelect('coCultura'))}</b></div>
 
     ${sec('Filtros aplicados')}
     <table class="corel-filtros">
+      ${filtro('Safra', _textoSelect('coSafra'))}
+      ${filtro('Cultura', _textoSelect('coCultura'))}
       ${filtro('Período', periodoTxt)}
       ${filtro('Unidade de volume', _textoSelect('coUnidade').replace(/^Volume em:\s*/,''))}
       ${filtro('Cultivar', _textoSelect('coCultivar'))}
@@ -1895,8 +1991,8 @@ function emitirRelatorioCentro(){
       : vazio('Nenhuma saída de produto no período.')}
 
     ${sec('Lotes tratados (ordens de tratamento)')}
-    ${lotesF.length ? tabela(`<th>Ordem</th><th>Data</th><th>Cultivar</th><th>Lote(s)</th><th>Receita</th><th>Operador</th><th class="n">Kg</th>${unVol!=='kg'?`<th class="n">${esc(rotUn)}</th>`:''}<th>Embalagem</th>`,
-        lotesF.slice().sort((a,b)=>tsL(b)-tsL(a)).map(l=>`<tr><td><b>${esc(l.numeroLote)}</b></td><td>${fmtDate(l.data)}</td><td>${esc(l.cultivar||'—')}</td><td>${lotesSemente(l)}</td><td>${esc(nomeCurtoReceita(l.receitaNome)||'—')}</td><td>${esc(l.operador||'—')}</td><td class="n">${fmtNum(Number(l.quantidadeSementes)||0)}</td>${unVol!=='kg'?`<td class="n">${volTxt(Number(l.quantidadeSementes)||0, l.cultivar)}</td>`:''}<td>${fmtEmbTxt(embalagemOrdem(l))}</td></tr>`).join(''))
+    ${lotesF.length ? tabela(`<th>Ordem</th><th>Data</th><th>Safra / Cultura</th><th>Cultivar</th><th>Lote(s)</th><th>Receita</th><th>Operador</th><th class="n">Kg</th>${unVol!=='kg'?`<th class="n">${esc(rotUn)}</th>`:''}<th>Embalagem</th>`,
+        lotesF.slice().sort((a,b)=>tsL(b)-tsL(a)).map(l=>`<tr><td><b>${esc(l.numeroLote)}</b></td><td>${fmtDate(l.data)}</td><td>${esc(rotuloSafraCultura(l._safra, l._cultura))}</td><td>${esc(l.cultivar||'—')}</td><td>${lotesSemente(l)}</td><td>${esc(nomeCurtoReceita(l.receitaNome)||'—')}</td><td>${esc(l.operador||'—')}</td><td class="n">${fmtNum(Number(l.quantidadeSementes)||0)}</td>${unVol!=='kg'?`<td class="n">${volTxt(Number(l.quantidadeSementes)||0, l.cultivar)}</td>`:''}<td>${fmtEmbTxt(embalagemOrdem(l))}</td></tr>`).join(''))
       : vazio('Nenhuma ordem de tratamento no período.')}
 
     ${sec('Operadores')}
@@ -1913,7 +2009,7 @@ function emitirRelatorioCentro(){
     ${movsF.length ? tabela(`<th>Data</th><th>Produto</th><th>Tipo</th><th>Motivo</th><th class="n">Quantidade</th><th>Responsável</th>`,
         movsF.slice().sort((a,b)=>tsM(b)-tsM(a)).map(m=>{ const prod = produtos.find(p=>p.id===m.produtoId);
           return `<tr><td>${fmtDate(m.data)}</td><td>${esc(m.produtoNome)}</td><td>${m.tipo==='entrada'?'Entrada':'Saída'}</td><td>${esc(m.motivo||'—')}</td><td class="n">${fmtNum(m.quantidade)} ${esc(prod?prod.unidade:'')}</td><td>${esc(m.responsavel||'—')}</td></tr>`; }).join(''))
-      + `<div class="corel-nota">${movsF.length} movimentação(ões) no período${f.categoria!=='todas'?' (categoria: '+esc(_textoSelect('coCategoria'))+')':''}.</div>`
+      + `<div class="corel-nota">${movsF.length} movimentação(ões) no período${f.categoria!=='todas'?' (categoria: '+esc(_textoSelect('coCategoria'))+')':''}.${(f.safra!=='todas'||f.cultura!=='todas')?' Com Safra/Cultura filtradas, as saídas de consumo seguem o filtro; entradas, ajustes e empréstimos são do estoque único e continuam listados.':''}</div>`
       : vazio('Nenhuma movimentação no período.')}
 
     ${sec('Alertas e ocorrências')}
@@ -2333,7 +2429,7 @@ document.getElementById('btnConfirmAcerto').addEventListener('click', ()=>{
   }
   pend.forEach(o=>{
     saldo = +(saldo - o.consumo).toFixed(3);
-    batch.set(db.collection('movimentacoes').doc(), { produtoId:prod.id, produtoNome:prod.nome, tipo:'saida', motivo:'Consumo em tratamento de sementes', quantidade:o.consumo, data:o.lote.data, observacoes:`Ordem ${o.lote.numeroLote} — ${o.lote.cultivar} (receita: ${o.receita.nome}) — baixa retroativa`, responsavel:quem, saldoApos:saldo, criadoEm:ts });
+    batch.set(db.collection('movimentacoes').doc(), { produtoId:prod.id, produtoNome:prod.nome, tipo:'saida', motivo:'Consumo em tratamento de sementes', quantidade:o.consumo, data:o.lote.data, observacoes:`Ordem ${o.lote.numeroLote} — ${o.lote.cultivar} (receita: ${o.receita.nome}) — baixa retroativa`, responsavel:quem, saldoApos:saldo, safra:o.lote._safra, cultura:o.lote._cultura, criadoEm:ts });
     batch.update(db.collection('lotesTratamento').doc(o.lote.id), { itensConsumidos: [...(o.lote.itensConsumidos||[]), {produtoId:prod.id, produtoNome:prod.nome, quantidade:o.consumo, unidade:prod.unidade}] });
   });
   batch.update(db.collection('produtos').doc(prod.id), { quantidade: saldo });
@@ -2790,9 +2886,9 @@ function fillReceitaSelect(){
 let loteItensAtuais = []; // estado interativo do preview (permite trocar produto substituto)
 
 /* ---------- Lote de semente (obrigatório para FECHAR) + identificador da Central de Lotes ----------
-   lotId = SAFRA_LOTE (ex.: SOJA2526_26S133C), mesma regra do robô da Central
-   (seedmax-qualidade/scripts/central_lotes.py: codigo_lote / montar_lot_id).
-   A safra vem de SAFRA_ATIVA (configuração única, no início do script).
+   lotId = montarIdLote(safra, cultura, lote): SOJA2526_26S133C (Verão) / INV2626_TRIGO_27AB001 (Inverno),
+   mesma regra do robô da Central (seedmax-qualidade/scripts/central_lotes.py: codigo_lote / montar_id_lote).
+   Safra e cultura vêm da ORDEM (montarIdLote): Verão = SAFRA_LOTE, Inverno = SAFRA_CULTURA_LOTE.
    sourceLotId = lote que entrou no TSI; treatedLotId = lote que saiu (igual se o código não muda).
    Ordem importada sem lote entra com LOTE PENDENTE e só fecha depois de informar o lote. */
 function codigoLote(bruto){
@@ -2804,6 +2900,38 @@ function montarLotId(safra, code){
   const seguro = String(code||'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');
   return seguro ? safra+'_'+seguro : null;
 }
+/* ---- REGRA ÚNICA SAFRA + CULTURA + LOTE (igual ao RASTREL e ao central_lotes.py) ---- */
+function normalizarCultura(c){
+  return String(c==null?'':c).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+}
+function safraDeLeitura(safra){ const s = String(safra==null?'':safra).trim().toUpperCase(); return SAFRAS[s] ? s : SAFRA_LEITURA_PADRAO; }
+function culturaDeLeitura(cultura, safra){
+  safra = safraDeLeitura(safra);
+  if(/^SOJA/.test(safra)) return CULTURA_SOJA;
+  const n = normalizarCultura(cultura);
+  const c = SAFRAS[safra].culturas.find(x=>normalizarCultura(x)===n);
+  return c || String(cultura==null?'':cultura).trim();
+}
+function montarIdLote(safra, cultura, lote){
+  const code = codigoLote(lote);
+  const seguro = code.replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');
+  if(!seguro) return null;
+  safra = safraDeLeitura(safra);
+  if(/^SOJA/.test(safra)) return safra+'_'+seguro;
+  return safra+'_'+(normalizarCultura(cultura)||'SEMCULTURA')+'_'+seguro;
+}
+function nomeSafra(codigo){ return SAFRAS[codigo] ? SAFRAS[codigo].nome : String(codigo||'—'); }
+function rotuloSafraCultura(safra, cultura){ return nomeSafra(safra) + (/^SOJA/.test(safra) ? '' : ' · '+(cultura||'sem cultura')); }
+/* Preenche um par de selects Safra/Cultura. Soja = cultura fixa. */
+function preencherSafraCultura(selSafra, selCultura, safra, cultura){
+  selSafra.innerHTML = Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)} (${x.codigo})</option>`).join('');
+  selSafra.value = SAFRAS[safra] ? safra : SAFRA_OPERACIONAL_PADRAO;
+  const culturas = SAFRAS[selSafra.value].culturas;
+  selCultura.innerHTML = (culturas.length>1 ? '<option value="">Selecione a cultura...</option>' : '') + culturas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const cl = culturaDeLeitura(cultura, selSafra.value);
+  selCultura.value = culturas.includes(cl) ? cl : (culturas.length===1 ? culturas[0] : '');
+  selCultura.disabled = culturas.length===1 || selSafra.disabled;
+}
 const RE_LOTE_VALIDO = /^[A-Z0-9][A-Z0-9/_-]{1,24}$/;
 /* O que a pessoa digitou só pode ter letras, números, / - _ (espaços são ignorados) e, no máximo,
    um ponto final de digitação ("26S35B." vira 26S35B). Qualquer outro caractere é RECUSADO,
@@ -2812,13 +2940,14 @@ function loteDigitadoValido(bruto){
   const s = String(bruto==null?'':bruto).trim().toUpperCase().replace(/\s+/g,'');
   return /^[A-Z0-9][A-Z0-9/_-]*\.?$/.test(s) && RE_LOTE_VALIDO.test(codigoLote(s));
 }
-function comIdsDeLote(l, safra){
-  safra = safra || SAFRA_ATIVA.codigo;
+function comIdsDeLote(l, safra, cultura){
+  safra = safraDeLeitura(safra); cultura = culturaDeLeitura(cultura, safra);
   const src = codigoLote(l.origem), dst = codigoLote(l.destino) || src;
-  return {...l, sourceLotCode:src, sourceLotId:montarLotId(safra, src), treatedLotCode:dst, treatedLotId:montarLotId(safra, dst)};
+  return {...l, sourceLotCode:src, sourceLotId:montarIdLote(safra, cultura, src), treatedLotCode:dst, treatedLotId:montarIdLote(safra, cultura, dst)};
 }
-function idsDaOrdem(det, safra){
-  return { safra: safra || SAFRA_ATIVA.codigo,
+function idsDaOrdem(det, safra, cultura){
+  safra = safraDeLeitura(safra);
+  return { safra, cultura: culturaDeLeitura(cultura, safra),
     lotesOrigem: [...new Set(det.map(l=>String(l.origem)))],
     sourceLotIds: [...new Set(det.map(l=>l.sourceLotId).filter(Boolean))],
     treatedLotIds: [...new Set(det.map(l=>l.treatedLotId).filter(Boolean))] };
@@ -2837,7 +2966,7 @@ function htmlEditorLotes(p){
     <div id="${p}LotesLista"></div>
     <div id="${p}LotesRodape" style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
       <button type="button" class="btn btn-ghost btn-sm" id="${p}LotesAdd">+ Adicionar lote</button>
-      <span style="font-size:11.5px; color:var(--text-mute);">"Lote tratado" só se o código mudar no tratamento. Com um lote só, o kg pode ficar em branco (usa o total). Safra ativa: ${esc(SAFRA_ATIVA.nome)}.</span>
+      <span style="font-size:11.5px; color:var(--text-mute);">"Lote tratado" só se o código mudar no tratamento. Com um lote só, o kg pode ficar em branco (usa o total). O identificador do lote usa a Safra e a Cultura da ordem.</span>
     </div>
   </div>`;
 }
@@ -2873,9 +3002,9 @@ function criarEditorLotes(p){
   };
   ed.remover = function(i){ ed.form.splice(i,1); if(!ed.form.length) ed.form.push(linhaVazia()); ed.render(); };
   /* Valida e devolve as linhas prontas para gravar (com sourceLotId/treatedLotId). */
-  ed.validar = function(kgTotal){
+  ed.validar = function(kgTotal, safra, cultura){
     if(ed.fixo){
-      const det = ed.fixo.map(x=>comIdsDeLote(x)).filter(x=>x.sourceLotCode);
+      const det = ed.fixo.map(x=>comIdsDeLote(x, safra, cultura)).filter(x=>x.sourceLotCode);
       if(!det.length) return {erro:'A ordem não tem lote de semente válido'};
       return {det};
     }
@@ -2892,7 +3021,7 @@ function criarEditorLotes(p){
       const kgTxt = String(x.kg||'').trim(), kg = kgTxt==='' ? null : Number(kgTxt);
       if(kg!=null && (isNaN(kg) || kg<0)) return {erro:'kg inválido no lote '+src};
       if(kg!=null && kg>kgTotal+0.01) return {erro:'O lote '+src+' tem mais kg que o total da ordem'};
-      det.push(comIdsDeLote({origem:src, destino: dst || src, kg, fonteLote:'manual'}));   // grava já no formato padrão (26s200a. → 26S200A)
+      det.push(comIdsDeLote({origem:src, destino: dst || src, kg, fonteLote:'manual'}, safra, cultura));   // grava já no formato padrão (26s200a. → 26S200A)
     }
     if(det.length===1 && det[0].kg==null) det[0].kg = kgTotal;
     let aviso = null;
@@ -2915,7 +3044,7 @@ function informarLote(id){
   const o = lotesAbertas.find(x=>x.id===id); if(!o) return;
   informandoLoteId = id;
   document.getElementById('infLoteTitulo').textContent = 'Informar lote — Ordem '+o.numeroLote;
-  document.getElementById('infLoteResumo').innerHTML = '<b>'+esc(o.cultivar)+'</b> · '+fmtNum(o.quantidadeSementes)+' kg · '+esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))+(o.produtor?' · Produtor: '+esc(o.produtor):'')
+  document.getElementById('infLoteResumo').innerHTML = '<b>'+esc(o.cultivar)+'</b> · '+esc(rotuloSafraCultura(o._safra, o._cultura))+' · '+fmtNum(o.quantidadeSementes)+' kg · '+esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))+(o.produtor?' · Produtor: '+esc(o.produtor):'')
     + '<div style="margin-top:4px; font-size:12px; color:var(--text-mute);">O estoque não muda aqui. Depois de salvar o lote, a ordem pode ser fechada.</div>';
   EDITORES.i.preparar({lotesOrigem:o.lotesOrigem||[]});   // sempre editável
   openModal('modalInformarLote');
@@ -2924,11 +3053,11 @@ document.getElementById('btnSalvarInfLote').addEventListener('click', ()=>{
   const o = lotesAbertas.find(x=>x.id===informandoLoteId);
   if(!o){ toast('Esta ordem não está mais aberta', true); closeModal('modalInformarLote'); return; }
   if(!ordemSemLote(o)){ toast('O lote desta ordem já foi informado', true); closeModal('modalInformarLote'); return; }
-  const vl = EDITORES.i.validar(Number(o.quantidadeSementes)||0);
+  const vl = EDITORES.i.validar(Number(o.quantidadeSementes)||0, o._safra, o._cultura);
   if(vl.erro){ toast(vl.erro, true); return; }
   if(vl.aviso && !confirm(vl.aviso+'\n\nSalvar assim mesmo?')) return;
   db.collection('lotesTratamento').doc(o.id).update({
-    lotesDetalhe: vl.det, ...idsDaOrdem(vl.det), lotePendente: false,
+    lotesDetalhe: vl.det, ...idsDaOrdem(vl.det, o._safra, o._cultura), lotePendente: false,
     loteInformadoPor: (currentUserData&&currentUserData.nome)||'Usuário',
     loteInformadoEm: firebase.firestore.FieldValue.serverTimestamp()
   }).then(()=>{ informandoLoteId = null; closeModal('modalInformarLote'); toast('Lote da ordem '+o.numeroLote+' salvo — a ordem já pode ser fechada'); })
@@ -2941,9 +3070,12 @@ document.getElementById('btnNovoLote').addEventListener('click', ()=>{
   document.getElementById('loteModalTitle').textContent = 'Tratar novo lote';
   document.getElementById('btnSalvarLote').textContent = 'Confirmar tratamento e baixar estoque';
   fillReceitaSelect();
+  document.getElementById('lSafra').disabled = false;
+  preencherSafraCultura(document.getElementById('lSafra'), document.getElementById('lCultura'), safraOperacional, culturaOperacional);
   document.getElementById('lCultivar').value = 'Zeus';
   document.getElementById('lCultivarManual').value = '';
   document.getElementById('lCultivarManual').style.display = 'none';
+  ajustarCultivarPorCultura();
   document.getElementById('lLote').value = '';
   document.getElementById('lQuantidade').value = '';
   document.getElementById('lSobra').value = '';
@@ -2956,8 +3088,26 @@ document.getElementById('btnNovoLote').addEventListener('click', ()=>{
 document.getElementById('lCultivar').addEventListener('change', function(){
   document.getElementById('lCultivarManual').style.display = this.value==='Outro' ? 'block' : 'none';
 });
+/* Lista de cultivares do modal é de SOJA. Em cultura de Inverno, o cultivar é digitado
+   (com sugestões dos cultivares já usados naquela cultura). */
+function culturaDoModal(){ return document.getElementById('lCultura').value; }
+function ajustarCultivarPorCultura(){
+  const cult = culturaDoModal(), soja = cult===CULTURA_SOJA, sel = document.getElementById('lCultivar'), man = document.getElementById('lCultivarManual');
+  sel.style.display = soja ? '' : 'none';
+  if(!soja){ sel.value = 'Outro'; man.style.display = 'block'; man.placeholder = cult ? 'Cultivar de '+cult : 'Escolha a cultura e digite o cultivar'; }
+  else { man.placeholder = 'Digite o nome do cultivar'; man.style.display = sel.value==='Outro' ? 'block' : 'none'; }
+  const usados = [...new Set([...lotes, ...lotesAbertas].filter(l=>l._cultura===cult && !soja).map(l=>l.cultivar).filter(Boolean))].sort();
+  document.getElementById('lCultivaresInverno').innerHTML = usados.map(c=>`<option value="${esc(c)}"></option>`).join('');
+}
+document.getElementById('lSafra').addEventListener('change', function(){
+  preencherSafraCultura(this, document.getElementById('lCultura'), this.value, '');
+  if(this.value==='SOJA2526'){ document.getElementById('lCultivar').value = 'Zeus'; document.getElementById('lCultivarManual').value = ''; }
+  ajustarCultivarPorCultura();
+});
+document.getElementById('lCultura').addEventListener('change', ajustarCultivarPorCultura);
 function getCultivarSelecionado(){
   const sel = document.getElementById('lCultivar').value;
+  if(culturaDoModal()!==CULTURA_SOJA) return document.getElementById('lCultivarManual').value.trim();
   return sel==='Outro' ? document.getElementById('lCultivarManual').value.trim() : sel;
 }
 function normalizeTxt(s){ return (s||'').trim().toLowerCase(); }
@@ -3047,7 +3197,10 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
   if(!cultivar || !numeroLote || !kg || !receita){ toast('Preencha todos os campos (inclusive o N° da ordem)', true); return; }
   if(sobraKg<0 || sobraKg>kg){ toast('A sobra não pode ser maior que a quantidade tratada', true); return; }
   if(fechandoOrdemId){ const ab = lotesAbertas.find(o=>o.id===fechandoOrdemId); if(ab && ordemSemLote(ab)){ toast('Ordem com LOTE PENDENTE — informe o lote antes de fechar', true); return; } }
-  const vl = EDITORES.l.validar(kg);
+  const safraOrd = document.getElementById('lSafra').value, culturaOrd = culturaDoModal();
+  if(!SAFRAS[safraOrd]){ toast('Escolha a safra da ordem', true); return; }
+  if(!culturaOrd || !SAFRAS[safraOrd].culturas.includes(culturaOrd)){ toast('Escolha a cultura da ordem', true); return; }
+  const vl = EDITORES.l.validar(kg, safraOrd, culturaOrd);
   if(vl.erro){ toast(vl.erro, true); document.getElementById('lLotesBox').scrollIntoView({behavior:'smooth', block:'center'}); return; }
   if(vl.aviso && !confirm(vl.aviso+'\n\nSalvar assim mesmo?')) return;
   const lotesDetalhe = vl.det;
@@ -3064,7 +3217,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
     operador: (v=>v.toLowerCase()==='c'?'Celso':v)(document.getElementById('lOperador').value.trim()),
     data: document.getElementById('lData').value,
     itensConsumidos: itens.map(i=>({produtoId:i.produtoId, produtoNome:i.produtoNome, quantidade:i.consumo, unidade:i.unidade})),
-    lotesDetalhe, ...idsDaOrdem(lotesDetalhe),
+    lotesDetalhe, ...idsDaOrdem(lotesDetalhe, safraOrd, culturaOrd),
     criadoEm: firebase.firestore.FieldValue.serverTimestamp()
   };
   if(fechandoOrdemId){
@@ -3084,6 +3237,7 @@ document.getElementById('btnSalvarLote').addEventListener('click', ()=>{
       quantidade: i.consumo, data: document.getElementById('lData').value,
       observacoes: `Ordem ${numeroLote} — ${cultivar} (receita: ${receita.nome})`,
       responsavel: currentUserData.nome || 'Usuário', saldoApos: novoSaldo,
+      safra: dadosLote.safra, cultura: dadosLote.cultura,   // só informativo: a baixa do estoque é a mesma
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
   });
@@ -3201,10 +3355,27 @@ function interpretarOrdemPdf(linhas){
   if(faltas.length) throw new Error('não achei: '+faltas.join(', '));
   return {numeroLote:numero, cultivar, tratamentoPdf:tratamento, produtor, data, observacaoPdf:observacao, quantidadeSementes:kg, lotesOrigem:[...new Set(lotesOrigem)], lotesDetalhe, pdfProdutos};
 }
-document.getElementById('btnNovoImportPdf').addEventListener('click', ()=> document.getElementById('pdfOrdens').click());
+/* Importar PDF: primeiro escolhe Safra + Cultura (vêm da safra em operação), depois o arquivo. */
+let importPdfSafra = null, importPdfCultura = null;
+document.getElementById('btnNovoImportPdf').addEventListener('click', ()=>{
+  document.getElementById('pdfSafra').disabled = false;
+  preencherSafraCultura(document.getElementById('pdfSafra'), document.getElementById('pdfCultura'), safraOperacional, culturaOperacional);
+  openModal('modalImportPdf');
+});
+document.getElementById('pdfSafra').addEventListener('change', function(){ preencherSafraCultura(this, document.getElementById('pdfCultura'), this.value, ''); });
+document.getElementById('btnEscolherPdf').addEventListener('click', ()=>{
+  const sf = document.getElementById('pdfSafra').value, cu = document.getElementById('pdfCultura').value;
+  if(!SAFRAS[sf]){ toast('Escolha a safra', true); return; }
+  if(!cu || !SAFRAS[sf].culturas.includes(cu)){ toast('Escolha a cultura', true); return; }
+  importPdfSafra = sf; importPdfCultura = cu;
+  closeModal('modalImportPdf');
+  document.getElementById('pdfOrdens').click();
+});
 document.getElementById('pdfOrdens').addEventListener('change', async function(){
   const arquivos = [...this.files]; this.value = '';
   if(!arquivos.length) return;
+  const sfImp = importPdfSafra, cuImp = importPdfCultura;
+  if(!SAFRAS[sfImp] || !cuImp){ toast('Escolha a safra e a cultura antes de importar', true); return; }
   toast('Lendo '+arquivos.length+' PDF'+(arquivos.length>1?'s':'')+'...');
   const ok = [], problemas = [], completadas = [], pendentes = [];
   const vistos = new Set([...lotes, ...lotesAbertas].map(l=>String(l.numeroLote)));
@@ -3213,19 +3384,23 @@ document.getElementById('pdfOrdens').addEventListener('change', async function()
       const o = interpretarOrdemPdf(await lerLinhasPdf(f));
       // lote de semente é obrigatório: se a tabela completa não foi lida, usa só o código do lote
       if(!o.lotesDetalhe.length && o.lotesOrigem.length) o.lotesDetalhe = o.lotesOrigem.map(x=>({origem:x, destino:x}));
-      o.lotesDetalhe = o.lotesDetalhe.map(x=>comIdsDeLote(x)).filter(x=>x.sourceLotCode);
       if(vistos.has(String(o.numeroLote))){
         const ex = [...lotes, ...lotesAbertas].find(l=>String(l.numeroLote)===String(o.numeroLote));
-        if(ex && !(ex.lotesDetalhe && ex.lotesDetalhe.length) && o.lotesDetalhe.length){   // ordem já existia sem os lotes de semente: só completa esse dado
-          await db.collection('lotesTratamento').doc(ex.id).update({lotesDetalhe:o.lotesDetalhe, ...idsDaOrdem(o.lotesDetalhe), lotePendente:false, produtor:ex.produtor||o.produtor||''});
+        const det = ex ? o.lotesDetalhe.map(x=>comIdsDeLote(x, ex._safra, ex._cultura)).filter(x=>x.sourceLotCode) : [];
+        if(ex && !(ex.lotesDetalhe && ex.lotesDetalhe.length) && det.length){   // ordem já existia sem os lotes de semente: só completa esse dado (com a safra/cultura DELA)
+          await db.collection('lotesTratamento').doc(ex.id).update({lotesDetalhe:det, ...idsDaOrdem(det, ex._safra, ex._cultura), lotePendente:false, produtor:ex.produtor||o.produtor||''});
           completadas.push(o.numeroLote);
         } else problemas.push(f.name+': a ordem '+o.numeroLote+' já existe no sistema (não importei de novo)');
         continue;
       }
+      // proteção: cultivar de soja conhecida sendo importada como Inverno (ou o contrário)
+      const ehSoja = !!cultivarParaOpcao(o.cultivar);
+      if(ehSoja && cuImp!==CULTURA_SOJA && !confirm('A ordem '+o.numeroLote+' tem cultivar de SOJA ('+o.cultivar+'), mas está sendo importada como '+rotuloSafraCultura(sfImp, cuImp)+'.\n\nImportar assim mesmo?')){ problemas.push(f.name+': ordem '+o.numeroLote+' não importada (safra/cultura não confirmada)'); continue; }
+      o.lotesDetalhe = o.lotesDetalhe.map(x=>comIdsDeLote(x, sfImp, cuImp)).filter(x=>x.sourceLotCode);
       await db.collection('lotesTratamento').add({
         status:'aberta', numeroLote:o.numeroLote, cultivar:o.cultivar, quantidadeSementes:o.quantidadeSementes,
         data:o.data || todayISO(), produtor:o.produtor, observacaoPdf:o.observacaoPdf, tratamentoPdf:o.tratamentoPdf,
-        receitaNome:o.tratamentoPdf, lotesDetalhe:o.lotesDetalhe, ...idsDaOrdem(o.lotesDetalhe), lotePendente: !o.lotesDetalhe.length, pdfProdutos:o.pdfProdutos,
+        receitaNome:o.tratamentoPdf, lotesDetalhe:o.lotesDetalhe, ...idsDaOrdem(o.lotesDetalhe, sfImp, cuImp), lotePendente: !o.lotesDetalhe.length, pdfProdutos:o.pdfProdutos,
         sobraKg:0, itensConsumidos:[], operador:'', importadoPor:(currentUserData&&currentUserData.nome)||'Usuário',
         importadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         criadoEm: firebase.firestore.FieldValue.serverTimestamp()
@@ -3278,7 +3453,7 @@ function renderAbertas(){
       const av = avisosOrdemAberta(o);
       return `<div style="border-top:1px solid var(--border); padding:10px 0; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex:1; min-width:240px;">
-          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b>${ordemSemLote(o)?' <span class="selo-lote-pendente" style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:800; letter-spacing:.03em;">LOTE PENDENTE</span>':''} · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))}</div>
+          <div style="font-size:14px;"><b>Ordem ${esc(o.numeroLote)}</b>${seloSafra(o)}${ordemSemLote(o)?' <span class="selo-lote-pendente" style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:800; letter-spacing:.03em;">LOTE PENDENTE</span>':''} · <b>${esc(o.cultivar)}</b> · ${fmtNum(o.quantidadeSementes)} kg · ${esc(nomeCurtoReceita(o.tratamentoPdf||o.receitaNome||''))}</div>
           <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${fmtDate(o.data)}${o.produtor?' · Produtor: '+esc(o.produtor):''}${o.observacaoPdf?' · '+esc(o.observacaoPdf):''}</div>
           <div style="font-size:12.5px; margin-top:3px; color:var(--text-soft);">${(()=>{
             const imp = _seg(o.importadoEm || o.criadoEm), ini = _seg(o.iniciadoEm), agora = Date.now()/1000;
@@ -3325,10 +3500,14 @@ function fecharOrdem(id){
   fillReceitaSelect();
   const r = receitaDaOrdem(o);
   if(r) document.getElementById('lReceita').value = r.id; else toast('Receita "'+(o.tratamentoPdf||'')+'" não encontrada — escolha a receita', true);
-  const opt = cultivarParaOpcao(o.cultivar);
+  document.getElementById('lSafra').disabled = true;   // a safra/cultura são as da ordem importada
+  preencherSafraCultura(document.getElementById('lSafra'), document.getElementById('lCultura'), o._safra, o._cultura);
+  if(!document.getElementById('lCultura').value){ document.getElementById('lCultura').disabled = false; }   // ordem de Inverno sem cultura: escolher agora
+  const opt = o._cultura===CULTURA_SOJA ? cultivarParaOpcao(o.cultivar) : null;
   document.getElementById('lCultivar').value = opt || 'Outro';
   document.getElementById('lCultivarManual').value = opt ? '' : o.cultivar;
   document.getElementById('lCultivarManual').style.display = opt ? 'none' : 'block';
+  ajustarCultivarPorCultura();
   document.getElementById('lLote').value = o.numeroLote;
   document.getElementById('lQuantidade').value = o.quantidadeSementes;
   document.getElementById('lSobra').value = '';
@@ -3392,10 +3571,14 @@ function excluirAberta(id){
   db.collection('lotesTratamento').doc(id).delete().then(()=>toast('Ordem '+o.numeroLote+' excluída')).catch(()=>toast('Erro ao excluir a ordem', true));
 }
 
+function seloSafra(l){
+  if(!l || /^SOJA/.test(l._safra||'')) return '';
+  return ` <span style="display:inline-block; background:#e8f0fb; color:#1d4f91; border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; white-space:nowrap;">${esc(rotuloSafraCultura(l._safra, l._cultura))}</span>`;
+}
 function lotesBuscados(){
   const termo = normBusca(document.getElementById('buscaLotes').value) || termoBusca();
   if(!termo) return lotes;
-  return lotes.filter(l=> [l.numeroLote, l.cultivar, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.produtor, (l.lotesOrigem||[]).join(' '), (l.lotesDetalhe||[]).map(x=>x.destino).join(' '), l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
+  return lotes.filter(l=> [l.numeroLote, l.cultivar, l._safra, nomeSafra(l._safra), l._cultura, l.receitaNome, nomeCurtoReceita(l.receitaNome), l.operador, l.produtor, (l.lotesOrigem||[]).join(' '), (l.lotesDetalhe||[]).map(x=>x.destino).join(' '), l.data, fmtDate(l.data)].some(v=>normBusca(v).includes(termo)));
 }
 document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes());
 function renderLotes(){
@@ -3407,7 +3590,7 @@ function renderLotes(){
   vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhuma ordem de tratamento ainda.';
   document.getElementById('tblLotes').innerHTML = lista.map(l=>`
     <tr>
-      <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b></td><td>${esc(l.numeroLote)}</td>
+      <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b>${seloSafra(l)}</td><td>${esc(l.numeroLote)}</td>
       <td>${fmtNum(l.quantidadeSementes)}</td><td><b>${fmtNum(l.sobraKg||0)}</b></td><td>${esc(l.receitaNome)}</td><td>${esc(l.operador||'—')}</td>
       <td><div class="tbl-actions"><button onclick='verLote("${l.id}")' title="Ver consumo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
@@ -3469,6 +3652,8 @@ function verLote(id){
   document.getElementById('verOrdemCorpo').innerHTML =
     `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px 20px;">
       ${campo('Data', fmtDate(l.data))}
+      ${campo('Safra', esc(nomeSafra(l._safra))+(l.safra?'':' <span style="color:var(--text-mute); font-weight:500;">(ordem antiga)</span>'))}
+      ${campo('Cultura', esc(l._cultura||'—'))}
       ${campo('Cultivar', esc(l.cultivar))}
       ${campo('Receita', esc(nomeCurtoReceita(l.receitaNome)||'—'))}
       ${campo('Operador', esc(l.operador||'—'))}
