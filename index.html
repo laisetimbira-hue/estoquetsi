@@ -703,6 +703,7 @@ body.perfil-nao-admin .so-admin{display:none !important;}
         <section class="section" id="section-lotes">
           <div class="toolbar">
             <input type="search" id="buscaLotes" placeholder="Buscar N° da ordem, lote, cultivar, receita, operador..." style="flex:1; min-width:220px; max-width:420px; padding:9px 12px; border:1.5px solid var(--border); border-radius:9px; font-size:13.5px;">
+            <select class="chip-filter" id="lotesSafraFiltro" autocomplete="off" title="Safra mostrada nas ordens abertas, no histórico e na sobra (começa na Safra em operação)" style="border:1.5px solid var(--border); background:var(--surface);"></select>
             <div class="grow"></div>
             <input type="file" id="pdfOrdens" accept="application/pdf,.pdf" multiple style="display:none;">
             <button class="btn btn-ghost" id="btnNovoImportPdf" title="Importar o PDF da ordem de tratamento do Agro1 (a ordem fica aberta até você fechar)">
@@ -1121,6 +1122,12 @@ const CULTURA_SOJA = 'Soja';
 const SAFRA_OPERACIONAL_PADRAO = 'INV2626'; // contexto operacional atual (pode trocar para Verão no topo)
 let safraOperacional = (()=>{ try{ const v = localStorage.getItem('tsiSafraOperacional'); return SAFRAS[v] ? v : SAFRA_OPERACIONAL_PADRAO; }catch(e){ return SAFRA_OPERACIONAL_PADRAO; } })();
 let culturaOperacional = (()=>{ try{ return localStorage.getItem('tsiCulturaOperacional') || ''; }catch(e){ return ''; } })();
+/* Contexto VISUAL (só filtra o que aparece na tela; nada é gravado): começa na Safra em operação.
+   Vale para Centro de Operações (coSafra), Ordens abertas, Histórico de ordens e Sobra.
+   "Todas as safras" continua disponível para consulta. */
+let coSafraInicializado = false;
+let lotesSafraVisao = safraOperacional;  // 'SOJA2526' | 'INV2626' | 'todas'
+function naSafraVisaoLotes(l){ return lotesSafraVisao==='todas' || (l && l._safra===lotesSafraVisao); }
 
 const firebaseConfig = {
   apiKey: "AIzaSyD4iZ7eGWWBx48D2sq7TcNhrpBg02ejhCQ",
@@ -1529,7 +1536,9 @@ function safraCulturaDaMov(m){
 function populateCoFiltros(){
   { // Safra e Cultura (as culturas acompanham a safra escolhida)
     const selS = document.getElementById('coSafra'), selC = document.getElementById('coCultura');
-    const atS = selS.value || 'todas', atC = selC.value || 'todas';
+    const atS = coSafraInicializado ? (selS.value || 'todas') : safraOperacional;
+    const atC = coSafraInicializado ? (selC.value || 'todas') : 'todas';
+    coSafraInicializado = true;
     selS.innerHTML = '<option value="todas">Todas as safras</option>' + Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)}</option>`).join('');
     selS.value = SAFRAS[atS] ? atS : 'todas';
     const culturas = selS.value==='todas' ? [...new Set(Object.values(SAFRAS).flatMap(x=>x.culturas))] : SAFRAS[selS.value].culturas.slice();
@@ -1849,7 +1858,30 @@ function verProdutoNoCentro(id){
   document.getElementById(id).addEventListener('change', renderCentroOperacoes);
 });
 
-/* Safra em operação (topo): vale para as ordens NOVAS deste navegador. Padrão = Inverno. */
+/* Safra em operação (topo): padrão das ordens NOVAS e contexto visual do TSI. Padrão = Inverno. */
+function preencherFiltroSafraLotes(){
+  const sel = document.getElementById('lotesSafraFiltro');
+  sel.innerHTML = Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)}</option>`).join('') + '<option value="todas">Todas as safras</option>';
+  sel.value = lotesSafraVisao;
+}
+function aplicarContextoSafra(){
+  // Centro: safra = a do topo, cultura volta para "Todas"
+  const coS = document.getElementById('coSafra'), coC = document.getElementById('coCultura');
+  if(coSafraInicializado){
+    if(![...coS.options].some(o=>o.value===safraOperacional)) coSafraInicializado = false;
+    else { coS.value = safraOperacional; coC.value = 'todas'; }
+  }
+  // Tratamento de Lotes: abertas, histórico e sobra
+  lotesSafraVisao = safraOperacional;
+  document.getElementById('lotesSafraFiltro').value = lotesSafraVisao;
+  renderCentroOperacoes(); renderLotes(); renderAbertas();
+}
+preencherFiltroSafraLotes();
+document.getElementById('lotesSafraFiltro').addEventListener('change', e=>{
+  lotesSafraVisao = (e.target.value==='todas' || SAFRAS[e.target.value]) ? e.target.value : safraOperacional;
+  renderLotes(); renderAbertas();
+});
+function verAbertasTodasSafras(){ lotesSafraVisao = 'todas'; document.getElementById('lotesSafraFiltro').value = 'todas'; renderLotes(); renderAbertas(); }
 (function(){
   const sel = document.getElementById('tsiSafraOperacional');
   sel.innerHTML = Object.values(SAFRAS).map(x=>`<option value="${x.codigo}">${esc(x.nome)}</option>`).join('');
@@ -1858,7 +1890,8 @@ function verProdutoNoCentro(id){
     safraOperacional = SAFRAS[sel.value] ? sel.value : SAFRA_OPERACIONAL_PADRAO;
     culturaOperacional = '';
     try{ localStorage.setItem('tsiSafraOperacional', safraOperacional); localStorage.removeItem('tsiCulturaOperacional'); }catch(e){}
-    toast('Safra em operação: '+nomeSafra(safraOperacional)+' — vale para as ordens novas');
+    aplicarContextoSafra();
+    toast('Safra em operação: '+nomeSafra(safraOperacional)+' — telas e ordens novas');
   });
   // lembra a última cultura usada numa ordem nova (só sugestão para a próxima)
   ['lCultura','pdfCultura'].forEach(id=> document.getElementById(id).addEventListener('change', e=>{
@@ -3437,10 +3470,14 @@ function avisosOrdemAberta(o){
 setInterval(()=>{ if(lotesAbertas.length) renderAbertas(); }, 60000);
 function renderAbertas(){
   const box = document.getElementById('abertasBox');
+  const naVisao = lotesAbertas.filter(naSafraVisaoLotes);
+  const foraVisao = lotesAbertas.length - naVisao.length;
+  const avisoFora = foraVisao ? `<div class="abertas-outras-safras" style="font-size:12.5px; color:var(--text-soft); margin:${naVisao.length?'0 0 10px':'0'};">+${foraVisao} ${foraVisao>1?'ordens abertas':'ordem aberta'} em outra safra — <a href="#" onclick="verAbertasTodasSafras(); return false;" style="color:var(--green-dark); font-weight:700;">ver todas as safras</a></div>` : '';
   if(!lotesAbertas.length){ box.style.display='none'; box.innerHTML=''; return; }
+  if(!naVisao.length){ box.style.display='block'; box.innerHTML = `<div class="card" style="padding:12px 18px;">${avisoFora}</div>`; return; }
   const viewer = (currentUserData && currentUserData.perfil)==='visualizador';
   const tsA = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
-  const lista = lotesAbertas.slice().sort((a,b)=> (tsA(b)-tsA(a)) || String(b.numeroLote).localeCompare(String(a.numeroLote)));
+  const lista = naVisao.slice().sort((a,b)=> (tsA(b)-tsA(a)) || String(b.numeroLote).localeCompare(String(a.numeroLote)));
   box.style.display = 'block';
   box.innerHTML = `<div class="card" style="border-color:var(--warn, #e0a800);">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
@@ -3449,6 +3486,7 @@ function renderAbertas(){
       ${lista.some(ordemSemLote) ? `<span style="background:#fde8e8; color:var(--danger); border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700;">${lista.filter(ordemSemLote).length} com lote pendente</span>` : ''}
       <span style="margin-left:auto; font-size:12.5px; color:var(--text-soft);">O estoque só baixa quando você fechar a ordem</span>
     </div>
+    ${avisoFora}
     ${lista.map(o=>{
       const av = avisosOrdemAberta(o);
       return `<div style="border-top:1px solid var(--border); padding:10px 0; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
@@ -3584,10 +3622,13 @@ document.getElementById('buscaLotes').addEventListener('input', ()=>renderLotes(
 function renderLotes(){
   // último lançado primeiro (criadoEm; sem criadoEm = acabou de ser lançado, vai pro topo; empate pela data)
   const tsLote = l => l.criadoEm && l.criadoEm.seconds!=null ? l.criadoEm.seconds : 9e12;
-  const lista = lotesBuscados().slice().sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
+  const buscadas = lotesBuscados();
+  const lista = buscadas.filter(naSafraVisaoLotes).sort((a,b)=> (tsLote(b)-tsLote(a)) || String(b.data||'').localeCompare(String(a.data||'')));
   const vazio = document.getElementById('emptyLotes');
   vazio.style.display = lista.length ? 'none' : 'block';
-  vazio.firstElementChild.textContent = lotes.length ? 'Nenhuma ordem encontrada para essa busca.' : 'Nenhuma ordem de tratamento ainda.';
+  vazio.firstElementChild.textContent = !lotes.length ? 'Nenhuma ordem de tratamento ainda.'
+    : buscadas.length ? 'Nenhuma ordem de '+nomeSafra(lotesSafraVisao)+(normBusca(document.getElementById('buscaLotes').value)||termoBusca() ? ' para essa busca' : '')+'. Escolha "Todas as safras" no filtro para ver as outras.'
+    : 'Nenhuma ordem encontrada para essa busca.';
   document.getElementById('tblLotes').innerHTML = lista.map(l=>`
     <tr>
       <td>${fmtDate(l.data)}</td><td><b>${esc(l.cultivar)}</b>${seloSafra(l)}</td><td>${esc(l.numeroLote)}</td>
@@ -3602,9 +3643,9 @@ function renderLotes(){
     </tr>`).join('');
   renderSobraResumo();
 }
-function sobraAgrupada(){
+function sobraAgrupada(soNaVisao){
   const map = {};
-  lotes.forEach(l=>{
+  (soNaVisao ? lotes.filter(naSafraVisaoLotes) : lotes).forEach(l=>{
     const k = (l.receitaNome||'—')+'||'+(l.cultivar||'—');
     if(!map[k]) map[k] = {tsi:l.receitaNome||'—', cultivar:l.cultivar||'—', ordens:0, tratado:0, sobra:0};
     map[k].ordens++; map[k].tratado += Number(l.quantidadeSementes)||0; map[k].sobra += Number(l.sobraKg)||0;
@@ -3612,10 +3653,11 @@ function sobraAgrupada(){
   return Object.values(map).filter(x=>x.sobra>0).sort((a,b)=>b.sobra-a.sobra);
 }
 function renderSobraResumo(){
-  const g = sobraAgrupada();
+  const g = sobraAgrupada(true);
   const tb = document.getElementById('tblSobraResumo');
   const totalGeral = g.reduce((a,x)=>a+x.sobra,0);
-  document.getElementById('sobraTotalResumo').textContent = g.length ? 'Total: '+fmtNum(+totalGeral.toFixed(2))+' kg' : 'Nenhuma sobra informada';
+  const rotSafraSobra = lotesSafraVisao==='todas' ? 'todas as safras' : nomeSafra(lotesSafraVisao);
+  document.getElementById('sobraTotalResumo').textContent = (g.length ? 'Total: '+fmtNum(+totalGeral.toFixed(2))+' kg' : 'Nenhuma sobra informada')+' · '+rotSafraSobra;
   if(!g.length){ tb.innerHTML = '<tr><td colspan="6" style="color:var(--text-mute);">Nenhuma sobra informada ainda. Use o lápis na linha da ordem para informar.</td></tr>'; return; }
   const tot = g.reduce((a,x)=>({tratado:a.tratado+x.tratado, sobra:a.sobra+x.sobra}),{tratado:0,sobra:0});
   tb.innerHTML = g.map(x=>`<tr><td>${esc(x.tsi)}</td><td><b>${esc(x.cultivar)}</b></td><td>${x.ordens}</td><td>${fmtNum(x.tratado)}</td><td><b>${fmtNum(+x.sobra.toFixed(2))}</b></td><td>${x.tratado?fmtNum(+(x.sobra/x.tratado*100).toFixed(1)):'0'}%</td></tr>`).join('')
